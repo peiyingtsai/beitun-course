@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09b">
+<meta name="app-build" content="2026-09-09c">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -383,6 +383,17 @@ function defaultSettings(){
     managerPin:""   // 空 = 不設密碼，任何人可切換成管理者檢視
   };
 }
+/* 每周成本類別（管理者用的損益表）*/
+const COST_CATS=[
+  ["ice","冰場冰時費用"],
+  ["pt","PT 教練費用"],
+  ["staff","台中人員費用"],
+  ["transport","交通費用"],
+  ["lodging","住宿費用"],
+  ["parking","停車費用"],
+  ["meal","餐飲費用"],
+  ["misc","其他雜項"]
+];
 let S={
   settings:defaultSettings(),
   students:[],            // {id,name,note,active}
@@ -391,6 +402,7 @@ let S={
   bank:{},                // year -> [ txn ]
   invItems:[],            // {id,name,unit,note}
   invMoves:{},            // year -> [ {id,type:in|transfer|sale,date,itemId,qty,price,last5,cash,buyer,note,matchTxnId,bankPaid} ]
+  cost:{},                // ym -> { weeks: { "<週一date>": { cat: {amount, note} } } }
   ui:{ tab:"overview", ym:curYM(), bankYear:new Date().getFullYear(), invYear:new Date().getFullYear() }
 };
 let ROLE = (()=>{ try{ return localStorage.getItem(ROLE_LS)||"staff"; }catch(e){ return "staff"; } })();
@@ -405,6 +417,7 @@ let attDueOpen=true;    // 課程點名「課程應收」是否展開（預設�
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
+function costM(ym){ if(!S.cost[ym]) S.cost[ym]={weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; return S.cost[ym]; }
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
 function bankY(y){ if(!S.bank[y]) S.bank[y]=[]; return S.bank[y]; }
 function moveY(y){ if(!S.invMoves[y]) S.invMoves[y]=[]; return S.invMoves[y]; }
@@ -422,6 +435,7 @@ function loadLS(){
       S.students=j.students||[]; S.attend=j.attend||{};
       S.pays=j.pays||{}; S.bank=j.bank||{};
       S.invItems=j.invItems||[]; S.invMoves=j.invMoves||{};
+      S.cost=j.cost||{};
       S.ui=Object.assign(S.ui,j.ui||{});
     }
   }catch(e){}
@@ -430,7 +444,7 @@ function loadLS(){
 function saveLS(){
   try{ localStorage.setItem(LS,JSON.stringify({
     settings:S.settings,students:S.students,attend:S.attend,pays:S.pays,bank:S.bank,
-    invItems:S.invItems,invMoves:S.invMoves,ui:S.ui
+    invItems:S.invItems,invMoves:S.invMoves,cost:S.cost,ui:S.ui
   })); }catch(e){}
 }
 
@@ -462,6 +476,7 @@ async function initDB(){
     DB.doc(`inv/moves-${y}`).onSnapshot(sn=>{ S.invMoves[y]= sn.exists?(clone(sn.data().moves)||[]):[]; normMoves(); saveLS(); rerender(); },e=>console.warn("moves",e));
   });
   subAttend(S.ui.ym);
+  subCost(S.ui.ym);
   renderStatus();
 }
 function subAttend(ym){
@@ -473,6 +488,15 @@ function subAttend(ym){
     saveLS(); rerender();
   },e=>console.warn("attend",e));
 }
+function subCost(ym){
+  if(!DB||subs["cost"+ym]) return;
+  subs["cost"+ym]=DB.doc(`cost/${ym}`).onSnapshot(sn=>{
+    S.cost[ym]= sn.exists ? clone(sn.data()) : {weeks:{}};
+    if(!S.cost[ym].weeks) S.cost[ym].weeks={};
+    saveLS(); rerender();
+  },e=>console.warn("cost",e));
+}
+async function pushCost(ym){ saveLS(); rerender(); if(DB) try{ await DB.doc(`cost/${ym}`).set(clone(costM(ym))); }catch(e){ toast("儲存失敗（成本）","bad"); } }
 function normPays(){ Object.values(S.pays).flat().forEach(p=>{ if(p&&p.last5!=null) p.last5=norm5(p.last5); }); }
 function normBank(){ Object.values(S.bank).flat().forEach(t=>{ if(t&&t.last5!=null) t.last5=norm5(t.last5); }); }
 function normMoves(){ Object.values(S.invMoves).flat().forEach(m=>{ if(m&&m.last5!=null) m.last5=norm5(m.last5); }); }
@@ -500,6 +524,31 @@ function activeDates(ym){
   const arr=(a.dates&&a.dates.length)?a.dates.slice():monthDates(ym);
   return arr.sort();
 }
+/* 該日期所屬那一周的週一（YYYY-MM-DD，本地時間，不用 toISOString 以免時區偏移）*/
+function weekMondayOf(dateStr){
+  const [y,m,d]=dateStr.split("-").map(Number);
+  const dt=new Date(y,m-1,d);
+  dt.setDate(dt.getDate()-((dt.getDay()+6)%7));
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
+}
+/* 該月的上課日依「周」分組 */
+function monthWeeks(ym){
+  const map={};
+  activeDates(ym).forEach(dt=>{ const k=weekMondayOf(dt); (map[k]=map[k]||[]).push(dt); });
+  return Object.keys(map).sort().map(monday=>({monday,dates:map[monday].slice().sort()}));
+}
+/* 某周的課程收入（依點名 × 價目表，原價）*/
+function weekRevenue(ym,dates){
+  const set=new Set(dates); let sum=0;
+  Object.keys(attM(ym).cells).forEach(k=>{
+    const dt=k.split("|")[1];
+    if(!set.has(dt)) return;
+    (attM(ym).cells[k]||[]).forEach(e=>{ sum+=priceOf(dt,e.slot); });
+  });
+  return sum;
+}
+function weekCostItems(ym,monday){ return (costM(ym).weeks[monday])||{}; }
+function weekCostTotal(ym,monday){ const it=weekCostItems(ym,monday); return COST_CATS.reduce((a,c)=>a+num(it[c[0]]&&it[c[0]].amount),0); }
 function wdOf(dateStr){ const [y,m,d]=dateStr.split("-").map(Number); return new Date(y,m-1,d).getDay(); }
 function sessionsFor(dateStr){ return S.settings.price[String(wdOf(dateStr))]||[]; }
 function priceOf(dateStr,slot){ const ss=sessionsFor(dateStr); return ss[slot]?num(ss[slot].price):0; }
@@ -708,6 +757,7 @@ const NAV=[
   ["dues","應收對帳","∑"],
   ["students","學員資料","☷"],
   ["_sep"],
+  ["pnl","每周成本收益","％",true],
   ["bankCourse","課程對帳","⇄",true],
   ["bankInv","裝備銷售對帳","⇆",true],
   ["_sep"],
@@ -723,9 +773,9 @@ function renderNav(){
   }).join("");
 }
 function renderTop(){
-  const titleMap={overview:"總覽",attend:"課程點名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
+  const titleMap={overview:"總覽",attend:"課程點名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",pnl:"每周成本收益",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
   let h=`<h2>${titleMap[S.ui.tab]||""}</h2><div class="grow"></div>`;
-  if(["overview","attend","dues"].includes(S.ui.tab)){
+  if(["overview","attend","dues","pnl"].includes(S.ui.tab)){
     h+=`<div class="mpick"><label>月份</label><div class="mo">
       <button data-ym="-1" title="上個月">‹</button>
       <select class="pick lbl" id="ymPick" style="border:0;background:none;text-align:center">
@@ -757,7 +807,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09b";
+const APP_BUILD="2026-09-09c";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -778,6 +828,7 @@ function renderBody(){
   else if(t==="pay") app.innerHTML=viewPay();
   else if(t==="dues") app.innerHTML=viewDues();
   else if(t==="students") app.innerHTML=viewStudents();
+  else if(t==="pnl"){ app.innerHTML=isMgr()?viewPnl():viewLocked(); }
   else if(t==="bankCourse"){ app.innerHTML=isMgr()?viewBankSide("pay"):viewLocked(); }
   else if(t==="bankInv"){ app.innerHTML=isMgr()?viewBankSide("sale"):viewLocked(); }
   else if(t==="inv") app.innerHTML=viewInv();
@@ -786,7 +837,7 @@ function renderBody(){
 }
 function viewLocked(){
   return `<div class="panel"><div class="empty"><div class="big">🔒</div>
-    <b>對帳功能僅限管理者</b><br>
+    <b>此頁僅限管理者</b><br>
     <span class="hint">請在左下角「切換」為管理者${S.settings.managerPin?"（需輸入管理者密碼）":""}。</span>
     <div style="margin-top:14px"><button class="btn primary" id="roleSwitch">切換身分</button></div></div></div>`;
 }
@@ -1337,6 +1388,68 @@ function adjustModal(arg){
   };
   $("#aj-save",m).onclick=()=>commit($("#aj-amt",m).value,$("#aj-note",m).value);
   const cl=$("#aj-clear",m); if(cl) cl.onclick=()=>commit(0,"");
+}
+
+/* ---------------- 每周成本收益（管理者）---------------- */
+function viewPnl(){
+  const ym=S.ui.ym;
+  subCost(ym);
+  const weeks=monthWeeks(ym);
+  let mRev=0,mCost=0;
+  const catTot={};
+  weeks.forEach(w=>{ const it=weekCostItems(ym,w.monday); COST_CATS.forEach(c=>{ catTot[c[0]]=(catTot[c[0]]||0)+num(it[c[0]]&&it[c[0]].amount); }); });
+  const weekPanels=weeks.map((w,wi)=>{
+    const rev=weekRevenue(ym,w.dates);
+    const items=weekCostItems(ym,w.monday);
+    const cost=weekCostTotal(ym,w.monday);
+    mRev+=rev; mCost+=cost;
+    const a=w.dates[0].slice(5).replace("-","/"), b=w.dates[w.dates.length-1].slice(5).replace("-","/");
+    const net=rev-cost;
+    const costRows=COST_CATS.map(c=>{
+      const it=items[c[0]]||{};
+      return `<tr>
+        <td>${c[1]}</td>
+        <td class="num"><input class="txt num" style="width:110px;text-align:right" data-cost="${w.monday}|${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0"></td>
+        <td><input class="txt" data-cost="${w.monday}|${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註"></td>
+      </tr>`;
+    }).join("");
+    return `<div class="panel">
+      <div class="ph"><h3>第 ${wi+1} 周　${a}–${b}</h3><span class="hint">${w.dates.length} 個上課日（週${w.dates.map(d=>WD[wdOf(d)]).join("、")}）</span>
+        <div class="grow"></div>
+        <span class="chip ${net>=0?'ok':'bad'}">收 ${fmt(rev)} · 成本 ${fmt(cost)} · 淨 ${fmt(net)}</span></div>
+      <div class="pb flush"><div class="tw"><table>
+        <thead><tr><th>成本類別</th><th class="num" style="width:130px">金額</th><th>備註</th></tr></thead>
+        <tbody>${costRows}</tbody>
+        <tfoot class="tfoot">
+          <tr><td>成本合計</td><td class="num">${fmt(cost)}</td><td></td></tr>
+          <tr><td>課程收入（依點名 · 原價）</td><td class="num">${fmt(rev)}</td><td></td></tr>
+          <tr><td><b>本周淨利</b></td><td class="num"><b class="${net>=0?'okp':'badp'}">${fmt(net)}</b></td><td></td></tr>
+        </tfoot>
+      </table></div></div>
+    </div>`;
+  }).join("");
+  return `
+  <div class="cards">
+    <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRev)}</div><div class="sub">依點名 × 價目表（原價）</div></div>
+    <div class="card"><div class="k">成本合計</div><div class="v">${fmt(mCost)}</div></div>
+    <div class="card accent"><div class="k">淨利</div><div class="v ${mRev-mCost>=0?'pos':'neg'}">${fmt(mRev-mCost)}</div></div>
+  </div>
+  <div class="btnrow" style="margin-bottom:14px">
+    <button class="btn primary sm" data-act="save-cost">💾 儲存成本</button>
+    <span class="hint">改完金額／備註後按此儲存（即時同步給其他管理者）</span>
+  </div>
+  ${weekPanels||`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`}
+  ${weeks.length?`<div class="panel">
+    <div class="ph"><h3>${esc(ymLabel(ym))} 成本分類彙總</h3></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>類別</th><th class="num">全月金額</th></tr></thead>
+      <tbody>${COST_CATS.map(c=>`<tr><td>${c[1]}</td><td class="num">${fmt(catTot[c[0]]||0)}</td></tr>`).join("")}</tbody>
+      <tfoot class="tfoot"><tr><td>成本合計</td><td class="num">${fmt(mCost)}</td></tr>
+        <tr><td>課程收入</td><td class="num">${fmt(mRev)}</td></tr>
+        <tr><td><b>本月淨利</b></td><td class="num"><b class="${mRev-mCost>=0?'okp':'badp'}">${fmt(mRev-mCost)}</b></td></tr></tfoot>
+    </table></div></div>
+  </div>`:""}
+  <p class="hint">「課程收入」＝該周點名產生的課程費（原價，未扣折扣）；折扣是整月結算，在「應收對帳」看。成本按周填，只有管理者看得到、可編輯。</p>`;
 }
 
 /* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
@@ -2237,7 +2350,7 @@ document.addEventListener("click",e=>{
   const roleBtn=e.target.closest("#roleSwitch"); if(roleBtn){ switchRole(); return; }
   if(e.target.closest("#opEdit")){ opModal(); return; }
   const tb=e.target.closest("[data-tab]");
-  if(tb){ const tab=tb.dataset.tab; if((tab==="bankCourse"||tab==="bankInv")&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); saveLS(); rerender(); return; }
+  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); saveLS(); rerender(); return; }
   const aj=e.target.closest("[data-adj]"); if(aj){ e.stopPropagation(); adjustModal(aj.dataset.adj); return; }
   const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
@@ -2267,6 +2380,7 @@ document.addEventListener("click",e=>{
   else if(d.act==="export-owe") exportDues(false);
   else if(d.act==="export-attend") exportAttend();
   else if(d.act==="export-attdue") exportAttDue();
+  else if(d.act==="save-cost"){ pushCost(S.ui.ym); toast("已儲存成本","ok"); }
   else if(d.act==="export-stock") exportStock();
   else if(d.act==="clear-bank"){ const y=S.ui.bankYear;
     confirmModal(`清空 ${y} 年銀行明細？已對帳的收款仍保留「已核對」狀態（bankPaid），只失去差額提示。`,()=>{
@@ -2317,6 +2431,13 @@ document.addEventListener("input",e=>{
   if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= sf==="price"?num(t.value):t.value; } }
   if(t.dataset.cd){ if(!S.settings.consecDiscount) S.settings.consecDiscount={price:1200,weeks:4,amount:300}; S.settings.consecDiscount[t.dataset.cd]=num(t.value); }
   if(t.dataset.cf){ const c=S.settings.classes.find(x=>x.id===t.dataset.id); if(c) c[t.dataset.cf]=t.value; }
+  if(t.dataset.cost){
+    const [monday,cat,field]=t.dataset.cost.split("|");
+    const wk=costM(S.ui.ym).weeks;
+    if(!wk[monday]) wk[monday]={};
+    if(!wk[monday][cat]) wk[monday][cat]={};
+    wk[monday][cat][field]= field==="amount"?num(t.value):t.value;
+  }
 });
 document.addEventListener("click",e=>{
   if(e.target.id==="price-save"){ pushSettings(); toast("已儲存價目表","ok"); }
@@ -2328,7 +2449,7 @@ document.addEventListener("click",e=>{
   if(e.target.id==="set-op-save"){ setOp($("#set-op").value); rerender(); toast("已儲存","ok"); }
   if(e.target.id==="wipe"){
     confirmModal("確定清空全部資料？此動作無法復原。",async()=>{
-      S.settings=defaultSettings(); S.students=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={};
+      S.settings=defaultSettings(); S.students=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={}; S.cost={};
       saveLS();
       if(DB){ try{
         await DB.doc("config/settings").set(clone(S.settings));
@@ -2344,12 +2465,12 @@ document.addEventListener("click",e=>{
 /* month picker */
 document.addEventListener("click",e=>{
   const mb=e.target.closest("[data-ym]");
-  if(mb){ S.ui.ym=shiftYM(S.ui.ym,+mb.dataset.ym); subAttend(S.ui.ym); saveLS(); rerender(); }
+  if(mb){ S.ui.ym=shiftYM(S.ui.ym,+mb.dataset.ym); subAttend(S.ui.ym); subCost(S.ui.ym); saveLS(); rerender(); }
 });
 document.addEventListener("change",e=>{
   if(e.target.id==="bankYear"){ S.ui.bankYear=+e.target.value; saveLS(); rerender(); }
   if(e.target.id==="invYear"){ S.ui.invYear=+e.target.value; invSel.clear(); invOpen.clear(); saveLS(); rerender(); }
-  if(e.target.id==="ymPick"){ S.ui.ym=e.target.value; subAttend(S.ui.ym); saveLS(); rerender(); }
+  if(e.target.id==="ymPick"){ S.ui.ym=e.target.value; subAttend(S.ui.ym); subCost(S.ui.ym); saveLS(); rerender(); }
   const ms=e.target.closest("[data-msel]");
   if(ms){ const id=ms.dataset.msel; e.target.checked?invSel.add(id):invSel.delete(id); rerender(); }
   if(e.target.id==="msel-all-in"||e.target.id==="msel-all-sale"){
