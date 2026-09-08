@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09g">
+<meta name="app-build" content="2026-09-09i">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -569,9 +569,17 @@ function monthCatTotals(ym){
   return out;
 }
 function monthCostTotal(ym){ return monthlyCostTotal(ym)+monthWeeks(ym).reduce((a,w)=>a+weekCostTotal(ym,w.monday),0); }
-function monthRevenue(ym){ return monthWeeks(ym).reduce((a,w)=>a+weekRevenue(ym,w.dates),0); }
+function monthRevenueGross(ym){ return monthWeeks(ym).reduce((a,w)=>a+weekRevenue(ym,w.dates),0); }  // 原價
+/* 該月實際收款（收款登錄的分配，含現金＋匯款）*/
+function monthCollected(ym){
+  let sum=0;
+  allPays().forEach(p=>(p.allocs||[]).forEach(a=>{ if(a.ym===ym) sum+=num(a.amount); }));
+  return sum;
+}
 function wdOf(dateStr){ const [y,m,d]=dateStr.split("-").map(Number); return new Date(y,m-1,d).getDay(); }
 function sessionsFor(dateStr){ return S.settings.price[String(wdOf(dateStr))]||[]; }
+/* 一組日期共有幾「場」（每天的場次數相加，非天數）*/
+function sessionCount(dates){ return dates.reduce((a,d)=>a+sessionsFor(d).length,0); }
 function priceOf(dateStr,slot){ const ss=sessionsFor(dateStr); return ss[slot]?num(ss[slot].price):0; }
 function cellKey(sid,date){ return sid+"|"+date; }
 function cellEntries(ym,sid,date){ return (attM(ym).cells[cellKey(sid,date)])||[]; }
@@ -828,7 +836,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09g";
+const APP_BUILD="2026-09-09i";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1416,9 +1424,12 @@ function viewPnl(){
   const ym=S.ui.ym;
   subCost(ym);
   const weeks=monthWeeks(ym);
-  const mRev=monthRevenue(ym);
+  const mGross=monthRevenueGross(ym);        // 點名 × 價目表（原價，僅作分攤基準／參考）
+  const mRev=monthCollected(ym);             // 課程收入＝該月實際收款
   const mCost=monthCostTotal(ym);
   const mNet=mRev-mCost;
+  // 收款為整月結算、無法歸到單周 → 依各周原價占比把實收金額分攤到各周
+  const weekColl=w=>mGross>0?Math.round(mRev*weekRevenue(ym,w.dates)/mGross):0;
   const cat=monthCatTotals(ym);
   const mi=monthlyCostItems(ym);
 
@@ -1441,7 +1452,7 @@ function viewPnl(){
     <div class="pb flush"><div class="tw"><table class="pnlmx">
       <thead><tr>
         <th>成本類別</th>
-        ${weeks.map((w,wi)=>`<th class="num">第 ${wi+1} 周<div class="hint">${w.dates[0].slice(5).replace("-","/")}–${w.dates[w.dates.length-1].slice(5).replace("-","/")} · ${w.dates.length}堂</div></th>`).join("")}
+        ${weeks.map((w,wi)=>`<th class="num">第 ${wi+1} 周<div class="hint">${w.dates[0].slice(5).replace("-","/")}–${w.dates[w.dates.length-1].slice(5).replace("-","/")} · ${w.dates.length}天 ${sessionCount(w.dates)}場</div></th>`).join("")}
         <th class="num">合計</th>
       </tr></thead>
       <tbody>
@@ -1456,15 +1467,15 @@ function viewPnl(){
       </tbody>
       <tfoot class="tfoot">
         <tr><td>變動成本合計</td>${weeks.map(w=>`<td class="num">${fmt(weekCostTotal(ym,w.monday))}</td>`).join("")}<td class="num">${fmt(weeklyCostSum)}</td></tr>
-        <tr><td>課程收入（原價）</td>${weeks.map(w=>`<td class="num">${fmt(weekRevenue(ym,w.dates))}</td>`).join("")}<td class="num">${fmt(mRev)}</td></tr>
-        <tr><td><b>收入 − 變動成本</b></td>${weeks.map(w=>{ const n=weekRevenue(ym,w.dates)-weekCostTotal(ym,w.monday); return `<td class="num"><b class="${n>=0?'okp':'badp'}">${fmt(n)}</b></td>`; }).join("")}<td class="num"><b class="${mRev-weeklyCostSum>=0?'okp':'badp'}">${fmt(mRev-weeklyCostSum)}</b></td></tr>
+        <tr><td>課程收入（實收·分攤）</td>${weeks.map(w=>`<td class="num">${fmt(weekColl(w))}</td>`).join("")}<td class="num">${fmt(mRev)}</td></tr>
+        <tr><td><b>收入 − 變動成本</b></td>${weeks.map(w=>{ const n=weekColl(w)-weekCostTotal(ym,w.monday); return `<td class="num"><b class="${n>=0?'okp':'badp'}">${fmt(n)}</b></td>`; }).join("")}<td class="num"><b class="${mRev-weeklyCostSum>=0?'okp':'badp'}">${fmt(mRev-weeklyCostSum)}</b></td></tr>
       </tfoot>
     </table></div></div>
   </div>`:`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`;
 
   return `
   <div class="cards">
-    <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRev)}</div><div class="sub">依點名 × 價目表（原價）</div></div>
+    <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRev)}</div><div class="sub">實際收款（收款登錄，含現金＋匯款）· 原價 ${fmt(mGross)}</div></div>
     <div class="card"><div class="k">成本合計</div><div class="v">${fmt(mCost)}</div><div class="sub">固定 ${fmt(monthlyCostTotal(ym))} ＋ 變動 ${fmt(mCost-monthlyCostTotal(ym))}</div></div>
     <div class="card accent"><div class="k">本月淨利</div><div class="v ${mNet>=0?'pos':'neg'}">${fmt(mNet)}</div></div>
   </div>
@@ -1489,7 +1500,8 @@ function viewPnl(){
     <div class="pb flush"><div class="tw"><table>
       <thead><tr><th>項目</th><th class="num">全月金額</th></tr></thead>
       <tbody>
-        <tr><td>課程收入（原價）</td><td class="num">${fmt(mRev)}</td></tr>
+        <tr><td>課程收入（實際收款）</td><td class="num">${fmt(mRev)}</td></tr>
+        <tr><td class="hint">　參考：課程原價（未扣折扣）</td><td class="num hint">${fmt(mGross)}</td></tr>
         ${COST_CATS.map(c=>`<tr><td class="hint">－ ${c[1]}</td><td class="num">${fmt(cat[c[0]]||0)}</td></tr>`).join("")}
       </tbody>
       <tfoot class="tfoot">
@@ -1498,8 +1510,8 @@ function viewPnl(){
       </tfoot>
     </table></div></div>
   </div>`:""}
-  <p class="hint">「課程收入」＝點名產生的課程費（原價，未扣折扣，折扣整月結算見「應收對帳」）。<br>
-  固定成本（冰場冰時費用、固定人事成本）每月填一次；變動成本（其餘 6 類）按周填。只有管理者看得到、可編輯。</p>`;
+  <p class="hint">「課程收入」＝該月「收款登錄」實際收到的款項（含現金＋匯款，已反映折扣與少繳）；原價僅列為參考。<br>
+  收款是整月結算，各周欄位是依原價占比分攤估算。固定成本（冰場冰時費用、固定人事成本）每月填一次；變動成本（其餘 6 類）按周填。只有管理者看得到、可編輯。</p>`;
 }
 
 /* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
