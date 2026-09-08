@@ -502,7 +502,13 @@ function entryLabel(dateStr,e){
 const SLOTMARK=["①","②","③","④","⑤","⑥"];
 
 function consecCfg(){ const c=S.settings.consecDiscount||{}; return {price:num(c.price)||1200, weeks:num(c.weeks)||4, amount:num(c.amount)||300}; }
-/* 學員該月應收（由點名表算）。amount = 原價總額 − 連續報名折扣 */
+/* 學員某月的「特別折扣」（個別學員手動給的），存在 student.adj[ym] = {amount, note} */
+function studentAdj(ym,sid){
+  const s=S.students.find(x=>x.id===sid);
+  const a=s&&s.adj&&s.adj[ym];
+  return (a && num(a.amount)>0) ? {amount:num(a.amount), note:a.note||""} : null;
+}
+/* 學員該月應收（由點名表算）。amount = 原價總額 − 連續報名折扣 − 特別折扣 */
 function studentDue(ym,sid){
   const dates=activeDates(ym); let gross=0, sessions=0;
   dates.forEach(dt=>{
@@ -525,6 +531,9 @@ function studentDue(ym,sid){
       if(best>=cd.weeks) discounts.push({label:(sess.label||("第"+(slot+1)+"場"))+" 連續"+cd.weeks+"周", amount:cd.amount});
     });
   });
+  // 個別學員的特別折扣
+  const adj=studentAdj(ym,sid);
+  if(adj) discounts.push({label:adj.note||"特別折扣", amount:adj.amount, special:true});
   const discount=discounts.reduce((a,d)=>a+d.amount,0);
   return {gross, discount, discounts, amount:gross-discount, sessions};
 }
@@ -876,15 +885,19 @@ function attDuePanel(ym,roster){
   const enrolled=enrolledStudents(ym,roster);
   const sessTot={}; let gSess=0, gGross=0, gDisc=0;
   const rows=enrolled.map(s=>{
-    const b=studentDueBreakdown(ym,s.id), d=studentDue(ym,s.id);
+    const b=studentDueBreakdown(ym,s.id), d=studentDue(ym,s.id), aj=studentAdj(ym,s.id);
     gSess+=b.sessions; gGross+=d.gross; gDisc+=d.discount;
     Object.entries(b.byLabel).forEach(([l,v])=>{ const t=(sessTot[l]=sessTot[l]||{count:0,amount:0}); t.count+=v.count; t.amount+=v.amount; });
     const detail=Object.entries(b.byLabel).map(([l,v])=>`${esc(l)} ×${v.count}`).join("、");
-    return `<tr data-open-student="${s.id}" style="cursor:pointer">
-      <td><b>${esc(s.name)}</b></td><td class="hint">${detail}</td>
+    const autoD=d.discounts.filter(x=>!x.special).reduce((a,x)=>a+x.amount,0);
+    const discCell = isMgr()
+      ? `<button class="linkbtn" data-adj="${ym}:${s.id}">${d.discount?"-"+fmtP(d.discount):"＋折扣"}</button>${autoD&&aj?`<div class="hint">連續 -${fmtP(autoD)}／特別 -${fmtP(aj.amount)}</div>`:aj?`<div class="hint">${esc(aj.note||"特別折扣")}</div>`:""}`
+      : `${d.discount?"-"+fmtP(d.discount):"—"}`;
+    return `<tr>
+      <td data-open-student="${s.id}" style="cursor:pointer"><b>${esc(s.name)}</b></td><td class="hint">${detail}</td>
       <td class="num">${b.sessions}</td>
       <td class="num">${fmt(d.gross)}</td>
-      <td class="num ${d.discount?'okp':''}">${d.discount?"-"+fmtP(d.discount):"—"}</td>
+      <td class="num ${d.discount?'okp':''}">${discCell}</td>
       <td class="num"><b>${fmt(d.amount)}</b></td></tr>`;
   }).join("");
   const sessRows=Object.entries(sessTot).sort((a,b)=>b[1].amount-a[1].amount)
@@ -1203,8 +1216,9 @@ function viewDues(){
     else if(owe>TOL) chip=`<span class="chip bad"><span class="dot"></span>欠 ${fmtP(owe)}</span>`;
     else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>待銀行核對</span>`;
     else chip=`<span class="chip ok"><span class="dot"></span>已收齊</span>`;
+    const aj=studentAdj(ym,s.id);
     return `<tr data-open-student="${s.id}" style="cursor:pointer">
-      <td><b>${esc(s.name)}</b></td>
+      <td><b>${esc(s.name)}</b>${aj?`<div class="hint okp">特別折扣 -${fmtP(aj.amount)}${aj.note?"（"+esc(aj.note)+"）":""}</div>`:""}</td>
       <td class="num">${d.sessions}</td>
       <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)}・折 -${fmtP(d.discount)}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td>
@@ -1240,9 +1254,9 @@ function studentModal(sid){
     ...paysOf.flatMap(p=>p.allocs.filter(a=>a.sid===sid).map(a=>a.ym))
   ])].sort().reverse();
   const monthRows=yms.map(ym=>{
-    const d=studentDue(ym,sid), p=studentPaid(ym,sid);
+    const d=studentDue(ym,sid), p=studentPaid(ym,sid), aj=studentAdj(ym,sid);
     return `<tr><td class="num">${ym}</td><td class="num">${d.sessions}</td>
-      <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)} 折 -${fmtP(d.discount)}</div>`:""}</td>
+      <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)} 折 -${fmtP(d.discount)}${aj?"（含特別 -"+fmtP(aj.amount)+"）":""}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td><td class="num ${d.amount-p.logged>TOL?'badp':''}">${fmt(d.amount-p.logged)}</td></tr>`;
   }).join("");
   const info=[
@@ -1269,6 +1283,35 @@ function studentModal(sid){
        }).join("")||`<tr><td colspan="4" class="hint">無</td></tr>`}</tbody></table></div>
    </div>
    <div class="mf"><button class="btn ghost" data-edit-student="${sid}">編輯學員</button><button class="btn primary" data-x>關閉</button></div>`,"wide");
+}
+
+/* 個別學員的「特別折扣」（某月），存 student.adj[ym] = {amount,note} */
+function adjustModal(arg){
+  const [ym,sid]=String(arg).split(":");
+  const s=S.students.find(x=>x.id===sid); if(!s) return;
+  const cur=(s.adj&&s.adj[ym])||{amount:"",note:""};
+  const d=studentDue(ym,sid);
+  const autoD=d.discounts.filter(x=>!x.special).reduce((a,x)=>a+x.amount,0);
+  const m=scrim(`
+   <div class="mh"><h3>${esc(s.name)} · ${esc(ymLabel(ym))} 特別折扣</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">個別給這位學員的折扣，只影響 ${esc(ymLabel(ym))}。<br>
+       原價 ${fmt(d.gross)}${autoD?` ・ 連續報名折扣 -${fmtP(autoD)}`:""}。</p>
+     <div class="grid2">
+       <div class="field"><label>折扣金額</label><input class="txt num" id="aj-amt" type="number" value="${cur.amount||""}" placeholder="0"></div>
+       <div class="field"><label>原因 / 備註</label><input class="txt" id="aj-note" value="${esc(cur.note||"")}" placeholder="例：教練子女、久候補償、推薦好友"></div>
+     </div>
+   </div>
+   <div class="mf">${(s.adj&&s.adj[ym])?`<button class="btn danger ghost" id="aj-clear">清除折扣</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="aj-save">儲存</button></div>`);
+  const commit=(amt,note)=>{
+    if(!s.adj) s.adj={};
+    if(num(amt)>0) s.adj[ym]={amount:num(amt),note:(note||"").trim()};
+    else delete s.adj[ym];
+    closeScrim(m); pushStudents(); toast("已更新特別折扣","ok");
+  };
+  $("#aj-save",m).onclick=()=>commit($("#aj-amt",m).value,$("#aj-note",m).value);
+  const cl=$("#aj-clear",m); if(cl) cl.onclick=()=>commit(0,"");
 }
 
 /* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
@@ -2158,6 +2201,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("#opEdit")){ opModal(); return; }
   const tb=e.target.closest("[data-tab]");
   if(tb){ const tab=tb.dataset.tab; if((tab==="bankCourse"||tab==="bankInv")&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); saveLS(); rerender(); return; }
+  const aj=e.target.closest("[data-adj]"); if(aj){ e.stopPropagation(); adjustModal(aj.dataset.adj); return; }
   const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
   const dr=e.target.closest("[data-invdate]");
