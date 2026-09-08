@@ -1,0 +1,2182 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>北屯冰場 課程/裝備</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js?v=1"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f4; --surface:#ffffff; --surface-2:#f4f7f9; --raised:#ffffff;
+  --ink:#122430; --ink-2:#38505d; --muted:#5f7683; --faint:#89a0ac;
+  --line:#dbe4e8; --line-2:#e8eef1;
+  --accent:#0d7aa6; --accent-ink:#ffffff; --accent-soft:#dff0f6;
+  --ok:#1c7d4d; --ok-soft:#e0f0e7;
+  --warn:#a9741a; --warn-soft:#f6ecd9;
+  --bad:#bb3f3f; --bad-soft:#f6e2e2;
+  --shadow:0 1px 2px rgba(18,36,48,.06),0 6px 20px rgba(18,36,48,.06);
+  --radius:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c141b; --surface:#141e27; --surface-2:#101922; --raised:#19242f;
+    --ink:#e6eef2; --ink-2:#c0ccd5; --muted:#8fa1ac; --faint:#6a7c88;
+    --line:#243139; --line-2:#1e2932;
+    --accent:#3fb0d8; --accent-ink:#04222f; --accent-soft:#103240;
+    --ok:#4bbd85; --ok-soft:#123024;
+    --warn:#d6a24a; --warn-soft:#332a17;
+    --bad:#e07a7a; --bad-soft:#3a2020;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c141b; --surface:#141e27; --surface-2:#101922; --raised:#19242f;
+  --ink:#e6eef2; --ink-2:#c0ccd5; --muted:#8fa1ac; --faint:#6a7c88;
+  --line:#243139; --line-2:#1e2932;
+  --accent:#3fb0d8; --accent-ink:#04222f; --accent-soft:#103240;
+  --ok:#4bbd85; --ok-soft:#123024;
+  --warn:#d6a24a; --warn-soft:#332a17;
+  --bad:#e07a7a; --bad-soft:#3a2020;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:"Barlow Semi Condensed","IBM Plex Sans","Microsoft JhengHei",sans-serif;margin:0;text-wrap:balance;font-weight:600;letter-spacing:.01em}
+.mono,.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:inherit;color:var(--ink)}
+a{color:var(--accent)}
+
+.wrap{display:flex;min-height:100vh;align-items:stretch}
+.side{width:200px;flex:none;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{padding:16px 16px 12px;display:flex;gap:9px;align-items:center;border-bottom:1px solid var(--line-2)}
+.brand .puck{width:27px;height:27px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-family:"Barlow Semi Condensed";font-size:15px}
+.brand b{font-family:"Barlow Semi Condensed";font-weight:700;font-size:15.5px;letter-spacing:.02em;line-height:1.15}
+.brand span{display:block;font-size:10px;color:var(--faint);letter-spacing:.04em}
+.nav{padding:8px;display:flex;flex-direction:column;gap:2px;flex:1;overflow:auto}
+.nav button{display:flex;gap:9px;align-items:center;width:100%;text-align:left;background:none;border:0;color:var(--ink-2);padding:8px 10px;border-radius:8px;font-weight:500}
+.nav button .ic{width:16px;text-align:center;opacity:.75}
+.nav button:hover{background:var(--surface-2)}
+.nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .sep{height:1px;background:var(--line-2);margin:6px 8px}
+.nav .lock{margin-left:auto;font-size:11px;opacity:.5}
+.side .foot{padding:10px;border-top:1px solid var(--line-2);display:flex;gap:6px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.side .foot .role{font-size:11.5px;color:var(--muted);display:flex;gap:5px;align-items:center}
+.side .foot button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:7px;padding:5px 8px;font-size:12px}
+.side .foot button:hover{color:var(--ink);border-color:var(--muted)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.topbar h2{font-size:19px}
+.topbar .grow{flex:1}
+.mpick{display:flex;gap:6px;align-items:center}
+.mpick label{font-size:11px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.mpick .mo{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.mpick .mo button{background:none;border:0;padding:6px 10px;color:var(--muted);font-weight:700}
+.mpick .mo button:hover{color:var(--ink);background:var(--surface-2)}
+.mpick .mo .lbl{padding:6px 10px;font-family:"IBM Plex Mono";font-weight:600;border-left:1px solid var(--line);border-right:1px solid var(--line);min-width:96px;text-align:center}
+select.pick,input.txt,textarea.txt{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0}
+select.pick:focus,input.txt:focus,textarea.txt:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+.content{padding:22px;max-width:1200px;width:100%}
+
+.btn{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 13px;border-radius:8px;font-weight:600;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:none}
+.btn.sm{padding:5px 9px;font-size:12.5px;font-weight:500;border-radius:7px}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
+.btn.danger:hover{background:var(--bad-soft)}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;box-shadow:var(--shadow)}
+.card .k{font-size:11px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-bottom:5px}
+.card .v{font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums;font-size:21px;font-weight:600;letter-spacing:-.01em}
+.card .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.card.accent{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:linear-gradient(180deg,var(--accent-soft),var(--surface) 60%)}
+.card .v.pos{color:var(--ok)} .card .v.neg{color:var(--bad)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+.panel > .ph{display:flex;gap:10px;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+.panel > .ph h3{font-size:15px;letter-spacing:.02em}
+.panel > .ph .grow{flex:1}
+.panel .pb{padding:14px 15px}
+.panel .pb.flush{padding:0}
+
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface-2)}
+td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--surface-2)}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums}
+.tfoot td{font-weight:600;background:var(--surface-2);border-top:2px solid var(--line)}
+tbody tr.selrow{background:var(--accent-soft)}
+tbody tr.selrow:hover{background:var(--accent-soft)}
+tbody tr.daterow td{background:var(--surface-2)}
+tbody tr.detrow td{border-bottom:1px solid var(--line-2)}
+tbody tr.detrow td:nth-child(3){padding-left:18px}
+
+.chip{display:inline-flex;gap:4px;align-items:center;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:600;line-height:1.6;white-space:nowrap}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.mut{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+.chip.acc{background:var(--accent-soft);color:var(--accent)}
+.chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+.empty{text-align:center;padding:40px 20px;color:var(--muted)}
+.empty .big{font-size:30px;margin-bottom:8px}
+.hint{font-size:12px;color:var(--muted)}
+.muted{color:var(--muted)}
+.warnp{color:var(--warn)} .badp{color:var(--bad)} .okp{color:var(--ok)}
+.right{text-align:right}
+.nowrap{white-space:nowrap}
+.diffbad{color:var(--bad);font-weight:600}
+
+/* attendance grid */
+.gridwrap{overflow:auto;max-height:70vh;border-top:1px solid var(--line-2)}
+table.grid{border-collapse:separate;border-spacing:0}
+table.grid th,table.grid td{border-bottom:1px solid var(--line-2);border-right:1px solid var(--line-2)}
+table.grid thead th{position:sticky;top:0;z-index:3;background:var(--surface-2)}
+table.grid .stick{position:sticky;left:0;z-index:2;background:var(--surface);border-right:2px solid var(--line);min-width:120px;font-weight:600}
+table.grid thead .stick{z-index:4}
+table.grid tbody tr:hover .stick{background:var(--surface-2)}
+table.grid td.cell{padding:4px;min-width:96px;cursor:pointer;vertical-align:top}
+table.grid td.cell:hover{background:var(--accent-soft)}
+table.grid td.cell.has{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+.centry{display:block;font-size:11px;font-weight:600;color:var(--ink-2);padding:2px 4px;border-radius:5px;background:var(--surface);border:1px solid var(--line-2);margin:1px 0}
+.dh{font-size:10.5px;line-height:1.25}
+.dh b{font-family:"IBM Plex Mono";font-size:12px}
+.dh .wd{color:var(--faint);font-weight:600}
+.wk-sat,.wk-sun{color:var(--bad)}
+.dchips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.dchip{flex:none;display:flex;flex-direction:column;align-items:center;gap:1px;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:6px 10px;color:var(--ink-2);position:relative;min-width:46px}
+.dchip .d{font-family:"IBM Plex Mono";font-weight:700;font-size:15px}
+.dchip .w{font-size:10px;color:var(--faint)}
+.dchip .n{position:absolute;top:-6px;right:-6px;background:var(--accent);color:var(--accent-ink);font-size:10px;font-weight:700;border-radius:999px;min-width:16px;height:16px;display:grid;place-items:center;padding:0 3px}
+.dchip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+table.dayatt{table-layout:fixed}
+table.dayatt th:first-child,table.dayatt td:first-child{width:34%}
+td.dcell{cursor:pointer;text-align:center;font-weight:600;color:var(--ink-2)}
+td.dcell:hover{background:var(--accent-soft)}
+td.dcell.has{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(10,16,22,.5);display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow:auto}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:560px}
+.modal.wide{max-width:860px}
+.modal .mh{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--line-2)}
+.modal .mh h3{font-size:16px;flex:1}
+.modal .mh .x{background:none;border:0;color:var(--muted);font-size:20px;line-height:1;padding:2px 6px;border-radius:6px}
+.modal .mh .x:hover{background:var(--surface-2);color:var(--ink)}
+.modal .mb{padding:18px}
+.modal .mf{padding:13px 18px;border-top:1px solid var(--line-2);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
+.field input.txt,.field select.pick,.field textarea.txt{width:100%}
+.field .fh{font-size:11px;color:var(--faint);margin-top:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.checkrow{display:flex;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line-2);border-radius:8px;margin-bottom:6px}
+.checkrow input[type=checkbox]{width:16px;height:16px}
+.checkrow .grow{flex:1}
+.rowline{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:center;margin-bottom:8px}
+.alloc{display:grid;grid-template-columns:1.3fr .9fr 1fr auto;gap:7px;align-items:center;margin-bottom:7px}
+@media(max-width:640px){.alloc{grid-template-columns:1fr 1fr;}.rowline{grid-template-columns:1fr 1fr}}
+
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,.25);animation:tin .2s ease}
+.toast.bad{background:var(--bad);color:#fff}
+.toast.ok{background:var(--ok);color:#fff}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:var(--surface);border:0;padding:6px 11px;color:var(--muted);font-weight:600;font-size:12.5px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+.linkbtn{background:none;border:0;color:var(--accent);font-weight:600;padding:0;font-size:inherit;text-decoration:underline;text-underline-offset:2px}
+
+.statusbar{font-size:11.5px;color:var(--faint);padding:4px 22px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.statusbar .live{display:inline-flex;gap:5px;align-items:center}
+.statusbar .live .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.statusbar .live.on .d{background:var(--ok)}
+
+@media (max-width:820px){
+  .wrap{flex-direction:column}
+  .side{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center}
+  .brand{border-bottom:0;border-right:1px solid var(--line-2)}
+  .nav{flex-direction:row;flex-wrap:wrap;flex:1}
+  .nav .sep{display:none}
+  .nav button{width:auto}
+  .nav .lock{display:none}
+  .side .foot{border-top:0;border-left:1px solid var(--line-2)}
+  .content{padding:16px}
+  .topbar{padding:12px 16px}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <aside class="side">
+    <div class="brand">
+      <div class="puck">屯</div>
+      <div><b>北屯冰場</b><span>課程 / 裝備</span></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="foot">
+      <span class="role" id="roleTag">—</span>
+      <button id="themeBtn" title="切換深/淺色">◐</button>
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar" id="topbar"></div>
+    <div class="statusbar" id="statusbar"></div>
+    <div class="content" id="app"></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ===================================================== Supabase 資料層（取代 Claude db） */
+let SB=null;
+const KV_TABLE="bt_kv";
+const kvSubs={};   // key -> [ next 回呼 ]
+function mkSnap(v){ return { exists: v!=null, data:()=> (v==null? undefined : v) }; }
+const DBShim={
+  doc(path){
+    return {
+      onSnapshot(next,err){
+        (kvSubs[path]=kvSubs[path]||[]).push(next);
+        SB.from(KV_TABLE).select("value").eq("k",path).maybeSingle()
+          .then(({data,error})=>{ if(error){ err&&err(error); return; } next(mkSnap(data?data.value:null)); })
+          .catch(e=>{ err&&err(e); });
+        return ()=>{};
+      },
+      async set(obj){
+        const { error } = await SB.from(KV_TABLE).upsert({ k:path, value:obj, updated_at:new Date().toISOString() },{ onConflict:"k" });
+        if(error) throw error;
+        (kvSubs[path]||[]).forEach(cb=>{ try{ cb(mkSnap(obj)); }catch(e){} });
+      }
+    };
+  }
+};
+function startRealtime(){
+  SB.channel("bt_kv_rt")
+    .on("postgres_changes",{ event:"*", schema:"public", table:KV_TABLE },(payload)=>{
+      const row=payload.new&&payload.new.k?payload.new:payload.old;
+      if(!row||!row.k) return;
+      const v = payload.eventType==="DELETE" ? null : (payload.new?payload.new.value:null);
+      (kvSubs[row.k]||[]).forEach(cb=>{ try{ cb(mkSnap(v)); }catch(e){} });
+    })
+    .subscribe();
+}
+
+/* ===================================================== helpers */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const TOL=30;
+const WD=["日","一","二","三","四","五","六"];
+const INV_YEARS=()=>{const y=new Date().getFullYear();return [y-1,y,y+1];};
+
+function num(v){
+  if(v==null) return 0;
+  if(typeof v==="number") return isFinite(v)?v:0;
+  let s=String(v).replace(/[,\s　]/g,"").replace(/NT\$?|＄|\$/gi,"").replace(/[（(]/,"-").replace(/[)）]/,"");
+  const n=parseFloat(s); return isFinite(n)?n:0;
+}
+function fmt(n){ n=Math.round(num(n)); const s=Math.abs(n).toLocaleString("en-US"); return (n<0?"-NT$":"NT$")+s; }
+function fmtP(n){ n=Math.round(num(n)); return n.toLocaleString("en-US"); }
+function norm5(v){
+  const s=String(v==null?"":v).replace(/\D/g,"").slice(-5);
+  return (s.length>=1 && s.length<5) ? s.padStart(5,"0") : s;
+}
+function last5of(acct){ let s=String(acct||""); if(s.includes("/")) s=s.split("/").pop(); return norm5(s); }
+function normPhone(v){
+  let s=String(v==null?"":v).replace(/[\s\-().]/g,"");
+  if(/^9\d{8}$/.test(s)) s="0"+s;            // 台灣手機少了開頭 0
+  return /^[0-9+]{6,}$/.test(s) ? s : String(v||"").trim();
+}
+function normDate(v){
+  const m=String(v||"").match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}` : "";
+}
+function toast(msg,kind){
+  const t=document.createElement("div"); t.className="toast"+(kind?" "+kind:""); t.textContent=msg;
+  $("#toast").appendChild(t); setTimeout(()=>t.remove(),2600);
+}
+function today(){ return new Date().toISOString().slice(0,10); }
+function curYM(){ return new Date().toISOString().slice(0,7); }
+function ymLabel(ym){ const [y,m]=ym.split("-"); return `${y} 年 ${+m} 月`; }
+function shiftYM(ym,delta){
+  let [y,m]=ym.split("-").map(Number); m+=delta;
+  while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
+  return `${y}-${String(m).padStart(2,"0")}`;
+}
+function clone(x){ try{ return structuredClone(x); }catch(e){ return JSON.parse(JSON.stringify(x)); } }
+function confirmModal(msg,onOk,okLabel="確定",danger=true){
+  const s=document.createElement("div"); s.className="scrim";
+  s.innerHTML=`<div class="modal" style="max-width:420px"><div class="mh"><h3>請確認</h3></div>
+   <div class="mb" style="white-space:pre-line">${esc(msg)}</div>
+   <div class="mf"><button class="btn ghost" data-c>取消</button>
+   <button class="btn ${danger?'danger':'primary'}" data-ok>${esc(okLabel)}</button></div></div>`;
+  s.addEventListener("click",e=>{ if(e.target===s||e.target.hasAttribute("data-c")) s.remove();
+    if(e.target.hasAttribute("data-ok")){ s.remove(); onOk(); }});
+  document.body.appendChild(s);
+}
+function scrim(inner,wide){
+  const s=document.createElement("div"); s.className="scrim";
+  s.innerHTML=`<div class="modal ${wide?'wide':''}">${inner}</div>`;
+  s.addEventListener("click",e=>{ if(e.target===s||e.target.closest("[data-x]")) closeScrim(s); });
+  document.body.appendChild(s); return s;
+}
+function closeScrim(s){ s.remove(); }
+
+/* ===================================================== state */
+let DB=null, dbReady=false;
+const LS="beitun-course-v1";
+const ROLE_LS="beitun-role";
+
+function defaultSettings(){
+  return {
+    classes:[],
+    // price[weekday 0-6] = [{id,label(場次名稱),time,price}]；場次名稱即課程名
+    price:{
+      "1":[{id:uid(),label:"基礎滑冰",time:"18:00–19:00",price:600},
+           {id:uid(),label:"基礎曲棍",time:"19:00–20:00",price:800},
+           {id:uid(),label:"成人體驗",time:"20:00–21:00",price:600}],
+      "2":[{id:uid(),label:"進階1",time:"18:00–19:20",price:1200},{id:uid(),label:"進階2",time:"19:30–21:00",price:1200}],
+      "3":[{id:uid(),label:"訓練營",time:"18:00–19:20",price:1200},{id:uid(),label:"成人之夜",time:"19:30–21:00",price:600}]
+    },
+    managerPin:""   // 空 = 不設密碼，任何人可切換成管理者檢視
+  };
+}
+let S={
+  settings:defaultSettings(),
+  students:[],            // {id,name,note,active}
+  attend:{},              // ym -> {dates:[], cells:{ "sid|date":[{slot,classId}] }}
+  pays:{},                // year -> [ {id,date,amount,last5,cash,payer,note,allocs:[{sid,ym,amount,kind,note}],matchTxnId,matchDate,bankPaid} ]
+  bank:{},                // year -> [ txn ]
+  invItems:[],            // {id,name,unit,note}
+  invMoves:{},            // year -> [ {id,type:in|transfer|sale,date,itemId,qty,price,last5,cash,buyer,note,matchTxnId,bankPaid} ]
+  ui:{ tab:"overview", ym:curYM(), bankYear:new Date().getFullYear(), invYear:new Date().getFullYear() }
+};
+let ROLE = (()=>{ try{ return localStorage.getItem(ROLE_LS)||"staff"; }catch(e){ return "staff"; } })();
+const isMgr=()=>ROLE==="manager";
+let OP = (()=>{ try{ return localStorage.getItem("beitun-op")||""; }catch(e){ return ""; } })();
+function setOp(v){ OP=(v||"").trim(); try{ localStorage.setItem("beitun-op",OP); }catch(e){} }
+let invSel=new Set();   // 進銷存「異動紀錄」批量選取
+let invOpen=new Set();  // 進銷存「異動紀錄」展開的日期
+let oweOpen=false;      // 總覽「本月欠款清單」是否展開
+let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
+
+function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
+function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
+function bankY(y){ if(!S.bank[y]) S.bank[y]=[]; return S.bank[y]; }
+function moveY(y){ if(!S.invMoves[y]) S.invMoves[y]=[]; return S.invMoves[y]; }
+function allPays(){ return Object.values(S.pays).flat(); }
+function allMoves(){ return Object.values(S.invMoves).flat(); }
+function className(cid){ const c=S.settings.classes.find(x=>x.id===cid); return c?c.name:"?"; }
+function studentName(sid){ const s=S.students.find(x=>x.id===sid); return s?s.name:"(已刪)"; }
+function itemName(iid){ const i=S.invItems.find(x=>x.id===iid); return i?i.name:"(已刪)"; }
+
+function loadLS(){
+  try{
+    const j=JSON.parse(localStorage.getItem(LS)||"null");
+    if(j){
+      S.settings=Object.assign(defaultSettings(),j.settings||{});
+      S.students=j.students||[]; S.attend=j.attend||{};
+      S.pays=j.pays||{}; S.bank=j.bank||{};
+      S.invItems=j.invItems||[]; S.invMoves=j.invMoves||{};
+      S.ui=Object.assign(S.ui,j.ui||{});
+    }
+  }catch(e){}
+  if(!S.ui.ym) S.ui.ym=curYM();
+}
+function saveLS(){
+  try{ localStorage.setItem(LS,JSON.stringify({
+    settings:S.settings,students:S.students,attend:S.attend,pays:S.pays,bank:S.bank,
+    invItems:S.invItems,invMoves:S.invMoves,ui:S.ui
+  })); }catch(e){}
+}
+
+/* ===================================================== db sync */
+const subs={};
+async function initDB(){
+  try{
+    const cfg=window.SUPABASE_CONFIG;
+    if(!cfg||!cfg.url||!cfg.anonKey||/YOUR_/.test(cfg.url)) throw new Error("尚未設定 config.js");
+    if(!window.supabase) throw new Error("Supabase SDK 未載入");
+    SB=window.supabase.createClient(cfg.url,cfg.anonKey);
+    DB=DBShim;
+    startRealtime();
+  }catch(e){ DB=null; console.warn("Supabase 連線失敗：",e); toast("雲端未連線："+(e.message||e),"bad"); }
+  if(!DB){ renderStatus(); return; }
+  dbReady=true;
+  DB.doc("config/settings").onSnapshot(sn=>{
+    if(sn.exists){ S.settings=Object.assign(defaultSettings(),clone(sn.data())); saveLS(); rerender(); }
+  },e=>console.warn("settings",e));
+  DB.doc("roster/students").onSnapshot(sn=>{
+    if(sn.exists){ S.students=clone(sn.data().students)||[]; saveLS(); rerender(); }
+  },e=>console.warn("students",e));
+  DB.doc("inv/items").onSnapshot(sn=>{
+    if(sn.exists){ S.invItems=clone(sn.data().items)||[]; saveLS(); rerender(); }
+  },e=>console.warn("items",e));
+  INV_YEARS().forEach(y=>{
+    DB.doc(`pay/${y}`).onSnapshot(sn=>{ S.pays[y]= sn.exists?(clone(sn.data().rows)||[]):[]; normPays(); saveLS(); rerender(); },e=>console.warn("pay",e));
+    DB.doc(`bank/${y}`).onSnapshot(sn=>{ S.bank[y]= sn.exists?(clone(sn.data().txns)||[]):[]; normBank(); saveLS(); rerender(); },e=>console.warn("bank",e));
+    DB.doc(`inv/moves-${y}`).onSnapshot(sn=>{ S.invMoves[y]= sn.exists?(clone(sn.data().moves)||[]):[]; normMoves(); saveLS(); rerender(); },e=>console.warn("moves",e));
+  });
+  subAttend(S.ui.ym);
+  renderStatus();
+}
+function subAttend(ym){
+  if(!DB||subs["att"+ym]) return;
+  subs["att"+ym]=DB.doc(`attend/${ym}`).onSnapshot(sn=>{
+    S.attend[ym]= sn.exists ? clone(sn.data()) : {dates:[],cells:{}};
+    if(!S.attend[ym].dates) S.attend[ym].dates=[];
+    if(!S.attend[ym].cells) S.attend[ym].cells={};
+    saveLS(); rerender();
+  },e=>console.warn("attend",e));
+}
+function normPays(){ Object.values(S.pays).flat().forEach(p=>{ if(p&&p.last5!=null) p.last5=norm5(p.last5); }); }
+function normBank(){ Object.values(S.bank).flat().forEach(t=>{ if(t&&t.last5!=null) t.last5=norm5(t.last5); }); }
+function normMoves(){ Object.values(S.invMoves).flat().forEach(m=>{ if(m&&m.last5!=null) m.last5=norm5(m.last5); }); }
+
+async function pushSettings(){ saveLS(); rerender(); if(DB) try{ await DB.doc("config/settings").set(clone(S.settings)); }catch(e){ toast("儲存失敗（設定）","bad"); } }
+async function pushStudents(){ saveLS(); rerender(); if(DB) try{ await DB.doc("roster/students").set({students:S.students}); }catch(e){ toast("儲存失敗（學員）","bad"); } }
+async function pushItems(){ saveLS(); rerender(); if(DB) try{ await DB.doc("inv/items").set({items:S.invItems}); }catch(e){ toast("儲存失敗（品項）","bad"); } }
+async function pushAttend(ym){ saveLS(); rerender(); if(DB) try{ await DB.doc(`attend/${ym}`).set(clone(attM(ym))); }catch(e){ toast("儲存失敗（點名）","bad"); } }
+async function pushPays(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`pay/${y}`).set({rows:payY(y)}); }catch(e){ toast("儲存失敗（收款）","bad"); } }
+async function pushBank(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`bank/${y}`).set({txns:bankY(y)}); }catch(e){ toast("儲存失敗（銀行）","bad"); } }
+async function pushMoves(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`inv/moves-${y}`).set({moves:moveY(y)}); }catch(e){ toast("儲存失敗（進銷存）","bad"); } }
+
+/* ===================================================== computed */
+function monthDates(ym){
+  const [y,m]=ym.split("-").map(Number);
+  const out=[]; const last=new Date(y,m,0).getDate();
+  for(let d=1;d<=last;d++){
+    const wd=new Date(y,m-1,d).getDay();
+    if([1,2,3].includes(wd)) out.push(`${ym}-${String(d).padStart(2,"0")}`);
+  }
+  return out;
+}
+function activeDates(ym){
+  const a=attM(ym);
+  const arr=(a.dates&&a.dates.length)?a.dates.slice():monthDates(ym);
+  return arr.sort();
+}
+function wdOf(dateStr){ const [y,m,d]=dateStr.split("-").map(Number); return new Date(y,m-1,d).getDay(); }
+function sessionsFor(dateStr){ return S.settings.price[String(wdOf(dateStr))]||[]; }
+function priceOf(dateStr,slot){ const ss=sessionsFor(dateStr); return ss[slot]?num(ss[slot].price):0; }
+function cellKey(sid,date){ return sid+"|"+date; }
+function cellEntries(ym,sid,date){ return (attM(ym).cells[cellKey(sid,date)])||[]; }
+/* 場次顯示名稱：優先用價目表的「場次名稱」，若是通用的「第N場」且舊資料有班別就顯示班別 */
+function entryLabel(dateStr,e){
+  const ss=sessionsFor(dateStr);
+  const nm=(ss[e.slot]&&ss[e.slot].label)||"";
+  if(nm && !/^第[一二三四五六]?場$/.test(nm)) return nm;
+  if(e.classId){ const c=(S.settings.classes||[]).find(x=>x.id===e.classId); if(c) return c.name; }
+  return nm || ("第"+(e.slot+1)+"場");
+}
+const SLOTMARK=["①","②","③","④","⑤","⑥"];
+
+/* 學員該月應收（由點名表算）*/
+function studentDue(ym,sid){
+  const dates=activeDates(ym); let sum=0, sessions=0;
+  dates.forEach(dt=>{
+    cellEntries(ym,sid,dt).forEach(e=>{ sum+=priceOf(dt,e.slot); sessions++; });
+  });
+  return {amount:sum,sessions};
+}
+/* 學員該月已收 / 已核對（由收款登錄的分配算，跨年度找）*/
+function studentPaid(ym,sid){
+  let logged=0, bank=0;
+  allPays().forEach(p=>{
+    (p.allocs||[]).forEach(a=>{
+      if(a.sid===sid && a.ym===ym){
+        const amt=num(a.amount);
+        logged+=amt;
+        if(!p.cash && (p.matchTxnId||p.bankPaid)) bank+=amt;
+      }
+    });
+  });
+  return {logged,bank};
+}
+function monthRoster(ym){
+  // 學員：本月點名表出現過的 + 名冊 active
+  const ids=new Set();
+  Object.keys(attM(ym).cells).forEach(k=>{ if((attM(ym).cells[k]||[]).length) ids.add(k.split("|")[0]); });
+  S.students.forEach(s=>{ if(s.active!==false) ids.add(s.id); });
+  return S.students.filter(s=>ids.has(s.id)).sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+}
+
+/* 庫存結存（北屯）：調入 - 銷售 */
+function stock(){
+  const map={};
+  S.invItems.forEach(i=>map[i.id]={item:i,in:0,sold:0,salesAmt:0});
+  allMoves().forEach(m=>{
+    if(!map[m.itemId]) return;
+    if(m.type==="in"||m.type==="transfer") map[m.itemId].in+=num(m.qty);
+    else if(m.type==="sale"){ map[m.itemId].sold+=num(m.qty); map[m.itemId].salesAmt+=num(m.price)*num(m.qty); }
+  });
+  Object.values(map).forEach(r=>r.left=r.in-r.sold);
+  return map;
+}
+
+/* 應收帳款對帳 for year — 課程收款(kind=pay) 與 裝備銷售(kind=sale) 分開計算 */
+function reconcile(year){
+  const txns=bankY(year);
+  const deposits=txns.filter(t=>num(t.deposit)>0 && !t.ignored);
+  const recs=[];
+  payY(year).forEach(p=>{ if(!p.cash) recs.push({
+    kind:"pay", id:p.id, ref:p, date:p.date, last5:norm5(p.last5), amount:num(p.amount),
+    label:(p.payer||studentNames(p))+" · 課程費", matched:!!p.matchTxnId, matchTxnId:p.matchTxnId||null }); });
+  moveY(year).forEach(m=>{ if(m.type==="sale" && !m.cash) recs.push({
+    kind:"sale", id:m.id, ref:m, date:m.date, last5:norm5(m.last5), amount:num(m.price)*num(m.qty),
+    label:(m.buyer||"")+" · "+itemName(m.itemId)+" ×"+num(m.qty), matched:!!m.matchTxnId, matchTxnId:m.matchTxnId||null }); });
+
+  const byTxn={};
+  recs.forEach(r=>{ if(r.matchTxnId){ (byTxn[r.matchTxnId]=byTxn[r.matchTxnId]||[]).push(r); } });
+  const openByL5={pay:{},sale:{}};
+  const allL5={pay:new Set(),sale:new Set()};
+  recs.forEach(r=>{
+    if(r.last5) allL5[r.kind].add(r.last5);
+    if(!r.matched){ const k=r.last5||"—"; (openByL5[r.kind][k]=openByL5[r.kind][k]||[]).push(r); }
+  });
+  const stuByL5={};
+  S.students.forEach(s=>{ const k=norm5(s.last5); if(k) (stuByL5[k]=stuByL5[k]||[]).push(s); });
+
+  function sideOf(t,side){
+    const dep=num(t.deposit);
+    const all=byTxn[t.id]||[];
+    const mine=all.filter(r=>r.kind===side);
+    const other=all.filter(r=>r.kind!==side);
+    const mineSum=mine.reduce((s,r)=>s+r.amount,0);
+    const otherSum=other.reduce((s,r)=>s+r.amount,0);
+    const target=dep-otherSum;   // 這一類要湊到的金額（扣掉另一類已對的）
+    const stuCands = side==="pay" ? (stuByL5[t.last5]||[]) : [];
+    let status,cands=[];
+    if(mine.length){
+      status=Math.abs(mineSum-target)<=TOL?"matched":"matched-diff";
+    }else{
+      const grp=openByL5[side][t.last5]||[];
+      if(!grp.length){
+        status = allL5[side].has(t.last5) ? "settled-l5"
+               : stuCands.length ? "student-l5" : "orphan";
+      }else{
+        const g=grp.reduce((s,r)=>s+r.amount,0);
+        status=Math.abs(g-target)<=TOL?"auto-ready":"mismatch";
+        cands=grp;
+      }
+    }
+    const rel = mine.length>0 || (openByL5[side][t.last5]||[]).length>0 || stuCands.length>0;
+    return {mine,mineSum,other,otherSum,target,dep,status,cands,stuCands,rel,diff:mineSum-target};
+  }
+
+  const txnInfo=deposits.map(t=>{
+    const all=byTxn[t.id]||[];
+    const pay=sideOf(t,"pay"), sale=sideOf(t,"sale");
+    const fullyOrphan = all.length===0
+      && !(openByL5.pay[t.last5]||[]).length && !(openByL5.sale[t.last5]||[]).length
+      && !(stuByL5[t.last5]||[]).length;
+    return {txn:t,dep:num(t.deposit),all,pay,sale,fullyOrphan,
+      payRel: pay.rel || fullyOrphan, saleRel: sale.rel || fullyOrphan};
+  });
+
+  const recInfo=recs.map(r=>{
+    let st="open";
+    if(r.matchTxnId){
+      const ti=txnInfo.find(x=>x.txn.id===r.matchTxnId);
+      const side=ti?ti[r.kind]:null;
+      st = side && side.status==="matched-diff" ? "paid-diff" : "paid";
+    } else if(r.ref.bankPaid) st="paid";
+    return {rec:r,st};
+  });
+
+  const ksum=(k,f)=>recs.filter(r=>r.kind===k).reduce((s,r)=>s+f(r),0);
+  const paidSet=new Set(recInfo.filter(x=>x.st==="paid"||x.st==="paid-diff").map(x=>x.rec.id));
+  const stat=k=>{
+    const total=ksum(k,r=>r.amount);
+    const paid=recs.filter(r=>r.kind===k&&paidSet.has(r.id)).reduce((s,r)=>s+r.amount,0);
+    const tis=txnInfo.filter(x=>x[k+"Rel"]);
+    const stf=x=>x[k].status;
+    return {
+      recvTotal:total, recvPaid:paid, recvOpen:total-paid,
+      nOpen:recInfo.filter(x=>x.st==="open"&&x.rec.kind===k).length,
+      nAuto:tis.filter(x=>stf(x)==="auto-ready").length,
+      nMismatch:tis.filter(x=>stf(x)==="mismatch"||stf(x)==="matched-diff").length,
+      nOrphan:tis.filter(x=>stf(x)==="orphan").length,
+      nStudentL5:tis.filter(x=>stf(x)==="student-l5").length
+    };
+  };
+
+  return {
+    txns,deposits,txnInfo,recs,recInfo,
+    course:stat("pay"), inv:stat("sale")
+  };
+}
+function studentNames(p){ return [...new Set((p.allocs||[]).map(a=>studentName(a.sid)))].join("、"); }
+
+async function runAutoMatch(year,side){
+  const R=reconcile(year);
+  const used=new Set(); let n=0;
+  R.txnInfo.forEach(ti=>{
+    const sd=ti[side];
+    if(sd.status==="auto-ready" && sd.cands.every(r=>!used.has(r.id))){
+      sd.cands.forEach(r=>{
+        r.ref.matchTxnId=ti.txn.id;
+        r.ref.matchDate=ti.txn.txnDate||ti.txn.postDate||today();
+        r.ref.bankPaid=true;
+        used.add(r.id); n++;
+      });
+    }
+  });
+  if(n){
+    if(side==="pay") await pushPays(year); else await pushMoves(year);
+    toast(`自動對帳完成：勾稽 ${n} 筆`,"ok");
+  } else toast("沒有可自動對帳的入帳（金額湊不出來，請手動指派）");
+}
+
+/* ===================================================== render */
+const NAV=[
+  ["overview","總覽","▤"],
+  ["attend","課程點名","▦"],
+  ["pay","收款登錄","＄"],
+  ["dues","應收對帳","∑"],
+  ["students","學員資料","☷"],
+  ["_sep"],
+  ["bankCourse","課程對帳","⇄",true],
+  ["bankInv","裝備銷售對帳","⇆",true],
+  ["_sep"],
+  ["inv","裝備進銷存","▧"],
+  ["settings","設定","⚙"]
+];
+function renderNav(){
+  $("#nav").innerHTML=NAV.map(x=>{
+    if(x[0]==="_sep") return `<div class="sep"></div>`;
+    const locked=x[3]&&!isMgr();
+    return `<button data-tab="${x[0]}" class="${S.ui.tab===x[0]?'on':''}">
+      <span class="ic">${x[2]}</span>${x[1]}${x[3]?`<span class="lock">${locked?'🔒':'管理者'}</span>`:''}</button>`;
+  }).join("");
+}
+function renderTop(){
+  const titleMap={overview:"總覽",attend:"課程點名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
+  let h=`<h2>${titleMap[S.ui.tab]||""}</h2><div class="grow"></div>`;
+  if(["overview","attend","dues"].includes(S.ui.tab)){
+    h+=`<div class="mpick"><label>月份</label><div class="mo">
+      <button data-ym="-1">‹</button><span class="lbl">${esc(ymLabel(S.ui.ym))}</span><button data-ym="1">›</button></div></div>`;
+  }
+  if((S.ui.tab==="bankCourse"||S.ui.tab==="bankInv") && isMgr()){
+    const yrs=INV_YEARS();
+    h+=`<div class="mpick"><label>年度</label><select class="pick" id="bankYear">
+      ${yrs.map(y=>`<option ${S.ui.bankYear===y?"selected":""}>${y}</option>`).join("")}</select></div>`;
+  }
+  if(S.ui.tab==="inv"){
+    const yrs=INV_YEARS();
+    h+=`<div class="mpick"><label>年度</label><select class="pick" id="invYear">
+      ${yrs.map(y=>`<option ${S.ui.invYear===y?"selected":""}>${y}</option>`).join("")}</select></div>`;
+  }
+  $("#topbar").innerHTML=h;
+}
+function renderRole(){
+  $("#roleTag").innerHTML=`身分：<b>${isMgr()?"管理者":"業務"}</b> <button class="linkbtn" id="roleSwitch">切換</button>
+    <br>姓名：<b>${esc(OP||"未設定")}</b> <button class="linkbtn" id="opEdit">${OP?"改":"設定"}</button>`;
+}
+function opModal(){
+  const s=scrim(`<div class="mh"><h3>設定你的姓名</h3><button class="x" data-x>×</button></div>
+    <div class="mb"><p class="hint">建單／登錄時會標記是誰做的（入庫人員／業務人員），記在這台裝置。</p>
+    <div class="field"><input class="txt" id="op-in" value="${esc(OP)}" placeholder="你的姓名"></div></div>
+    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="op-ok">儲存</button></div>`);
+  $("#op-in",s).focus();
+  $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
+}
+function renderStatus(){
+  $("#statusbar").innerHTML=`
+    <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
+    <span>學員 ${S.students.length} · 品項 ${S.invItems.length}</span>`;
+}
+function rerender(){
+  try{ renderNav(); renderTop(); renderRole(); renderStatus(); renderBody(); }
+  catch(e){ console.error("rerender",e); toast("畫面更新錯誤："+(e&&e.message||e),"bad"); }
+}
+window.addEventListener("error",ev=>{ try{ toast("錯誤："+(ev.message||(ev.error&&ev.error.message)||ev.error),"bad"); }catch(_){}});
+window.addEventListener("unhandledrejection",ev=>{ try{ toast("錯誤："+(ev.reason&&ev.reason.message||ev.reason),"bad"); }catch(_){}});
+
+function renderBody(){
+  const t=S.ui.tab, app=$("#app");
+  if(t==="overview") app.innerHTML=viewOverview();
+  else if(t==="attend") app.innerHTML=viewAttend();
+  else if(t==="pay") app.innerHTML=viewPay();
+  else if(t==="dues") app.innerHTML=viewDues();
+  else if(t==="students") app.innerHTML=viewStudents();
+  else if(t==="bankCourse"){ app.innerHTML=isMgr()?viewBankSide("pay"):viewLocked(); }
+  else if(t==="bankInv"){ app.innerHTML=isMgr()?viewBankSide("sale"):viewLocked(); }
+  else if(t==="inv") app.innerHTML=viewInv();
+  else if(t==="settings") app.innerHTML=viewSettings();
+  else { S.ui.tab="overview"; app.innerHTML=viewOverview(); }
+}
+function viewLocked(){
+  return `<div class="panel"><div class="empty"><div class="big">🔒</div>
+    <b>對帳功能僅限管理者</b><br>
+    <span class="hint">請在左下角「切換」為管理者${S.settings.managerPin?"（需輸入管理者密碼）":""}。</span>
+    <div style="margin-top:14px"><button class="btn primary" id="roleSwitch">切換身分</button></div></div></div>`;
+}
+
+/* ---------------- students ---------------- */
+function ageFrom(bd){
+  const m=String(bd||"").match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return "";
+  const t=new Date(); let a=t.getFullYear()-(+m[1]);
+  if(t.getMonth()+1 < +m[2] || (t.getMonth()+1===+m[2] && t.getDate()<+m[3])) a--;
+  return a>=0&&a<120 ? a+" 歲" : "";
+}
+function viewStudents(){
+  const list=S.students.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  const rows=list.map(s=>`
+    <tr data-open-student="${s.id}" style="cursor:pointer">
+      <td><b>${esc(s.name)}</b>${s.active===false?' <span class="chip mut">停用</span>':''}</td>
+      <td>${esc(s.parent||"")}</td>
+      <td class="nowrap">${esc(s.parentPhone||s.mobile||"")}</td>
+      <td class="nowrap">${esc(s.birthday||"")}${s.birthday?` <span class="hint">${ageFrom(s.birthday)}</span>`:""}</td>
+      <td class="mono">${esc(s.last5||"")}</td>
+      <td class="hint">${esc(s.email||"")}</td>
+      <td class="right nowrap"><button class="btn sm ghost" data-edit-student="${s.id}">編輯</button>
+        <button class="btn sm danger" data-del-student="${s.id}">刪</button></td>
+    </tr>`).join("");
+  return `
+  <div class="panel">
+    <div class="ph"><h3>學員資料入口 <span class="hint">（${list.length} 位）</span></h3><div class="grow"></div>
+      <button class="btn sm" data-act="import-students">⬆ 匯入 / 更新</button>
+      <button class="btn primary sm" data-act="add-student">＋ 新增學員</button></div>
+    ${!list.length?`<div class="empty"><div class="big">☷</div>還沒有學員。可「＋ 新增學員」逐筆建，或「⬆ 匯入」貼上 Excel。</div>`:`
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>學員</th><th>家長</th><th>電話</th><th>生日</th><th>後五碼</th><th>Email</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`}
+  </div>
+  <p class="hint">點任一列看完整資料與繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。</p>`;
+}
+
+/* ---------------- overview ---------------- */
+function viewOverview(){
+  const ym=S.ui.ym;
+  const roster=monthRoster(ym);
+  let due=0,logged=0,bank=0,ns=0;
+  roster.forEach(s=>{
+    const d=studentDue(ym,s.id), p=studentPaid(ym,s.id);
+    due+=d.amount; logged+=p.logged; bank+=p.bank; ns+=d.sessions;
+  });
+  const owe=roster.filter(s=>{ const d=studentDue(ym,s.id).amount, p=studentPaid(ym,s.id).logged; return d-p>TOL; });
+  const st=stock();
+  const stItems=Object.values(st);
+  const totalLeft=stItems.reduce((a,r)=>a+r.left,0);
+  const iy=S.ui.invYear;
+  const salesY=moveY(iy).filter(m=>m.type==="sale").reduce((a,m)=>a+num(m.price)*num(m.qty),0);
+  const yr=+ym.slice(0,4);
+  const RcInv=reconcile(iy).inv;
+
+  return `
+  <h3 style="margin:2px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted)">課程收支 · ${esc(ymLabel(ym))}</h3>
+  <div class="cards">
+    <div class="card"><div class="k">本月應收（點名）</div><div class="v">${fmt(due)}</div><div class="sub">${roster.length} 位學員 · ${ns} 堂</div></div>
+    <div class="card"><div class="k">本月已收（業務登錄）</div><div class="v">${fmt(logged)}</div><div class="sub">尚缺 ${fmt(due-logged)}</div></div>
+    <div class="card"><div class="k">本月銀行已核對</div><div class="v">${fmt(bank)}</div><div class="sub">已登未核 ${fmt(logged-bank)}</div></div>
+    <div class="card ${owe.length?'':'accent'}"><div class="k">本月欠款</div><div class="v ${owe.length?'neg':'pos'}">${owe.length} 人</div><div class="sub">${owe.length?"共 "+fmt(owe.reduce((a,s)=>a+(studentDue(ym,s.id).amount-studentPaid(ym,s.id).logged),0)):"全數收齊"}</div></div>
+  </div>
+  <div class="panel">
+    <div class="ph" data-toggle-owe style="cursor:pointer">
+      <h3>${oweOpen?"▾":"▸"} 本月欠款清單</h3>
+      <span class="chip ${owe.length?'bad':'ok'}">${owe.length?owe.length+" 人 · 缺 "+fmt(owe.reduce((a,s)=>a+(studentDue(ym,s.id).amount-studentPaid(ym,s.id).logged),0)):"全數收齊"}</span>
+      <div class="grow"></div>
+      <button class="btn sm" data-act="export-owe">⬇ 催繳 CSV</button>
+      <button class="btn sm" data-tab="dues">完整對帳表 →</button></div>
+    ${oweOpen?`<div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>學員</th><th class="num">應收</th><th class="num">已收</th><th class="num">未收</th><th class="num">堂數</th></tr></thead>
+      <tbody>${owe.map(s=>{
+        const d=studentDue(ym,s.id),p=studentPaid(ym,s.id);
+        return `<tr data-open-student="${s.id}" style="cursor:pointer">
+          <td><b>${esc(s.name)}</b></td>
+          <td class="num">${fmt(d.amount)}</td>
+          <td class="num">${fmt(p.logged)}</td>
+          <td class="num badp">${fmt(d.amount-p.logged)}</td>
+          <td class="num">${d.sessions}</td></tr>`;
+      }).join("")||`<tr><td colspan="5" class="empty">本月沒有欠款</td></tr>`}</tbody>
+    </table></div></div>`:""}
+  </div>
+
+  <h3 style="margin:22px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:16px">裝備銷售 · ${iy} 年</h3>
+  <div class="cards">
+    <div class="card"><div class="k">北屯結存</div><div class="v">${fmtP(totalLeft)} 件</div><div class="sub">${stItems.length} 個品項</div></div>
+    <div class="card"><div class="k">${iy} 年銷售額</div><div class="v">${fmt(salesY)}</div><div class="sub">含現金＋匯款</div></div>
+    <div class="card"><div class="k">裝備應收帳款未收</div><div class="v ${RcInv.recvOpen>TOL?'neg':'pos'}">${fmt(RcInv.recvOpen)}</div><div class="sub">匯款銷售未對帳</div></div>
+    <div class="card"><div class="k">銷售待對帳</div><div class="v ${(RcInv.nMismatch+RcInv.nOrphan)?'neg':''}">${RcInv.nMismatch+RcInv.nOrphan} 筆</div><div class="sub">金額不符 ${RcInv.nMismatch} · 無對應 ${RcInv.nOrphan}</div></div>
+  </div>`;
+}
+
+/* ---------------- attendance ---------------- */
+function viewAttend(){
+  const ym=S.ui.ym;
+  subAttend(ym);
+  const dates=activeDates(ym);
+  const roster=monthRoster(ym);
+  if(!S.students.length) return `<div class="panel"><div class="empty"><div class="big">▦</div><b>還沒有學員</b>
+    <div style="margin-top:12px"><button class="btn primary" data-act="add-student">＋ 新增學員</button>
+    <button class="btn" data-act="import-students">⬆ 匯入學員</button></div></div></div>`;
+
+  const view=S.ui.attView||"day";
+  const head=`
+    <div class="ph"><h3>${esc(ymLabel(ym))}　點名表</h3><div class="grow"></div>
+      <div class="seg">
+        <button data-attview="day" class="${view==='day'?'on':''}">單日</button>
+        <button data-attview="grid" class="${view==='grid'?'on':''}">整月表</button>
+      </div>
+      <button class="btn sm" data-act="edit-dates">🗓 上課日</button>
+      <button class="btn sm" data-act="export-attend">⬇ CSV</button></div>`;
+
+  if(!dates.length){
+    return `<div class="panel">${head}<div class="empty">本月沒有上課日。<button class="btn sm" data-act="edit-dates">產生上課日</button></div></div>`;
+  }
+
+  if(view==="grid"){
+    const th=dates.map(dt=>{
+      const wd=wdOf(dt); const dd=+dt.slice(-2);
+      return `<th class="dh"><div class="wd wk-${['sun','','','','','','sat'][wd]||''}">週${WD[wd]}</div><b>${dd}</b></th>`;
+    }).join("");
+    const body=roster.map(s=>{
+      const cells=dates.map(dt=>{
+        const ents=cellEntries(ym,s.id,dt);
+        const inner=ents.slice().sort((a,b)=>a.slot-b.slot).map(e=>`<span class="centry">${SLOTMARK[e.slot]||''} ${esc(entryLabel(dt,e))}</span>`).join("");
+        return `<td class="cell ${ents.length?'has':''}" data-cell="${s.id}|${dt}">${inner||'<span class="hint">＋</span>'}</td>`;
+      }).join("");
+      const d=studentDue(ym,s.id);
+      return `<tr><td class="stick" data-open-student="${s.id}" style="cursor:pointer">${esc(s.name)}
+        <div class="hint num">${fmt(d.amount)} · ${d.sessions}堂</div></td>${cells}</tr>`;
+    }).join("");
+    return `<div class="panel">${head}
+      <div class="gridwrap"><table class="grid">
+        <thead><tr><th class="stick">學員 \\ 日期</th>${th}</tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+    </div>
+    <p class="hint">點格子勾選該學員當天上了哪些場次。想單日點名比較簡潔，切到「單日」。</p>`;
+  }
+
+  /* ---- 單日 ---- */
+  let dt=S.ui.attDate;
+  if(!dates.includes(dt)){
+    const t=today();
+    dt = dates.find(x=>x>=t) || dates[dates.length-1];
+    S.ui.attDate=dt;
+  }
+  const wd=wdOf(dt);
+  const ss=sessionsFor(dt);
+  const chips=dates.map(x=>{
+    const n=roster.reduce((a,s)=>a+cellEntries(ym,s.id,x).length,0);
+    return `<button class="dchip ${x===dt?'on':''}" data-attdate="${x}">
+      <span class="d">${+x.slice(-2)}</span><span class="w">週${WD[wdOf(x)]}</span>${n?`<span class="n">${n}</span>`:""}</button>`;
+  }).join("");
+
+  const rows=roster.map(s=>{
+    const ents=cellEntries(ym,s.id,dt);
+    const cellFor=slot=>{
+      const e=ents.find(x=>x.slot===slot);
+      return `<td class="dcell ${e?'has':''}" data-cell="${s.id}|${dt}" data-focus="${slot}">${e?'✓ 有來':'<span class="hint">＋</span>'}</td>`;
+    };
+    return `<tr>
+      <td data-cell="${s.id}|${dt}"><b>${esc(s.name)}</b></td>
+      ${ss.map((_,i)=>cellFor(i)).join("")}
+    </tr>`;
+  }).join("");
+
+  const perSess=ss.map((sess,i)=>{
+    const n=roster.reduce((a,s)=>a+cellEntries(ym,s.id,dt).filter(e=>e.slot===i).length,0);
+    return `<span class="chip mut">${esc(sess.label)} ${n} 人</span>`;
+  }).join(" ");
+
+  return `<div class="panel">${head}
+    <div class="pb" style="padding-bottom:8px"><div class="dchips">${chips}</div></div>
+    <div class="pb" style="padding-top:0"><b>${esc(dt)}（週${WD[wd]}）</b>　${perSess||'<span class="hint">這天沒有設定場次</span>'}</div>
+    ${ss.length?`<div class="tw"><table class="dayatt">
+      <thead><tr><th>學員</th>${ss.map(x=>`<th style="text-align:center">${esc(x.label)}<div class="hint">${esc(x.time||"")} · ${fmtP(x.price)}</div></th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`:`<div class="empty">週${WD[wd]}沒有場次／價格，請到「設定 → 價目表」新增。</div>`}
+  </div>
+  <p class="hint">點學員任一格開啟登錄。切「整月表」看跨日全貌。</p>`;
+}
+
+function cellModal(sid,date){
+  const ym=S.ui.ym;
+  const ss=sessionsFor(date);
+  const wd=wdOf(date);
+  if(!ss.length){ toast(`週${WD[wd]}沒有設定場次／價格，請先到「設定 → 價目表」新增`,"bad"); return; }
+  const ents=cellEntries(ym,sid,date);
+  const s=scrim(`
+   <div class="mh"><h3>${esc(studentName(sid))} · ${esc(date)}（週${WD[wd]}）</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">勾選這位學員這天上了哪些場次</p>
+     ${ss.map((sess,i)=>{
+       const on=ents.some(x=>x.slot===i);
+       return `<label class="checkrow"><input type="checkbox" data-slot="${i}" ${on?"checked":""}>
+         <span class="grow"><b>${esc(sess.label||("第"+(i+1)+"場"))}</b> <span class="hint">${esc(sess.time||"")} · ${fmtP(sess.price)}</span></span></label>`;
+     }).join("")}
+   </div>
+   <div class="mf"><button class="btn danger ghost" id="c-clear">清空此格</button>
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="c-save">儲存</button></div>`);
+  $("#c-clear",s).onclick=()=>{ delete attM(ym).cells[cellKey(sid,date)]; closeScrim(s); pushAttend(ym); toast("已清空"); };
+  $("#c-save",s).onclick=()=>{
+    const arr=[];
+    $$("[data-slot]",s).forEach(el=>{ if(el.checked){ const slot=+el.dataset.slot; const old=ents.find(x=>x.slot===slot); arr.push(old?Object.assign({},old,{slot}):{slot}); } });
+    if(arr.length) attM(ym).cells[cellKey(sid,date)]=arr;
+    else delete attM(ym).cells[cellKey(sid,date)];
+    closeScrim(s); pushAttend(ym); toast("已儲存","ok");
+  };
+}
+function editDatesModal(){
+  const ym=S.ui.ym;
+  const a=attM(ym);
+  const cur=(a.dates&&a.dates.length)?a.dates.slice():monthDates(ym);
+  const s=scrim(`
+   <div class="mh"><h3>${esc(ymLabel(ym))} 上課日</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">預設為當月所有週一、二、三。可自行增減（停課、補課日）。</p>
+     <div class="field"><label>上課日（每行一個日期 YYYY-MM-DD）</label>
+       <textarea class="txt" id="d-list" rows="8">${cur.join("\n")}</textarea></div>
+     <button class="btn sm" id="d-gen">重新產生週一二三</button>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="d-save">儲存</button></div>`);
+  $("#d-gen",s).onclick=()=>{ $("#d-list",s).value=monthDates(ym).join("\n"); };
+  $("#d-save",s).onclick=()=>{
+    const arr=$("#d-list",s).value.split(/\s+/).map(x=>x.trim()).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x));
+    a.dates=[...new Set(arr)].sort();
+    closeScrim(s); pushAttend(ym); toast("已更新上課日","ok");
+  };
+}
+
+/* ---------------- pay ---------------- */
+function viewPay(){
+  const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  return `
+  <div class="panel">
+    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填）</span></h3><div class="grow"></div>
+      <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>日期</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
+      <tbody>${rows.map(p=>{
+        const allocTxt=(p.allocs||[]).map(a=>`${esc(studentName(a.sid))} <span class="hint">${a.ym}${a.kind==="makeup"?" 補堂":""}</span> ${fmtP(a.amount)}`).join("<br>");
+        const bankSt = p.cash ? `<span class="chip mut">現金</span>`
+          : p.matchTxnId ? `<span class="chip ok"><span class="dot"></span>已核對</span>`
+          : p.bankPaid ? `<span class="chip ok">已核對</span>`
+          : `<span class="chip warn"><span class="dot"></span>待對帳</span>`;
+        return `<tr>
+          <td class="nowrap">${esc(p.date||"")}</td>
+          <td>${esc(p.payer||"")}${p.last5&&!p.cash?`<div class="hint">後五碼 ${esc(p.last5)}</div>`:""}</td>
+          <td class="hint" style="line-height:1.7">${allocTxt||"—"}</td>
+          <td class="num">${fmt(p.amount)}</td>
+          <td>${p.cash?"現金":"匯款"}</td>
+          <td>${bankSt}${isMgr()&&!p.cash?(p.matchTxnId?"":p.bankPaid?`<button class="btn sm ghost" data-unmark-paid="pay:${p.id}" style="margin-left:6px">取消</button>`:`<button class="btn sm primary" data-mark-paid="pay:${p.id}" style="margin-left:6px">✓ 核銷</button>`):""}</td>
+          <td class="right nowrap"><button class="btn sm ghost" data-edit-pay="${p.id}">編輯</button>
+            <button class="btn sm danger" data-del-pay="${p.id}">刪</button></td>
+        </tr>`;
+      }).join("")||`<tr><td colspan="7" class="empty">尚無收款紀錄</td></tr>`}</tbody>
+    </table></div></div>
+  </div>`;
+}
+function payModal(id){
+  const yNow=new Date().getFullYear();
+  let p=id?allPays().find(x=>x.id===id):null;
+  const editing=!!p;
+  if(!p) p={id:uid(),date:today(),amount:0,last5:"",cash:false,payer:"",note:"",allocs:[{sid:"",ym:S.ui.ym,amount:0,kind:"course",note:""}]};
+  else p=clone(p);
+  if(!p.allocs||!p.allocs.length) p.allocs=[{sid:"",ym:S.ui.ym,amount:0,kind:"course",note:""}];
+
+  const allocRow=(a,i)=>`
+    <div class="alloc" data-arow="${i}">
+      <select class="pick" data-af="sid">
+        <option value="">— 學員 —</option>
+        ${S.students.slice().sort((x,y)=>x.name.localeCompare(y.name,"zh-Hant")).map(s=>`<option value="${s.id}" ${a.sid===s.id?"selected":""}>${esc(s.name)}</option>`).join("")}
+      </select>
+      <input class="txt" data-af="ym" value="${esc(a.ym||S.ui.ym)}" placeholder="YYYY-MM" style="font-family:'IBM Plex Mono'">
+      <input class="txt num" data-af="amount" type="number" value="${a.amount||""}" placeholder="金額">
+      <div style="display:flex;gap:4px;align-items:center">
+        <select class="pick" data-af="kind" style="width:auto"><option value="course" ${a.kind!=="makeup"?"selected":""}>月費</option><option value="makeup" ${a.kind==="makeup"?"selected":""}>補堂</option></select>
+        <button class="btn sm danger ghost" data-arm="${i}">×</button>
+      </div>
+    </div>`;
+
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯收款":"新增收款"}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="grid2">
+       <div class="field"><label>收款日期</label><input class="txt" id="p-date" type="date" value="${esc(p.date||today())}"></div>
+       <div class="field"><label>總金額</label><input class="txt num" id="p-amount" type="number" value="${p.amount||""}"></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>繳款人 / 家長</label><input class="txt" id="p-payer" value="${esc(p.payer||"")}" placeholder="例：王媽媽"></div>
+       <div class="field"><label>匯款帳號後五碼</label><input class="txt" id="p-last5" value="${esc(p.last5||"")}" placeholder="12345" ${p.cash?"disabled":""}></div>
+     </div>
+     <div class="field"><label class="checkrow" style="margin:0"><input type="checkbox" id="p-cash" ${p.cash?"checked":""}> 現金繳款（不進銀行對帳）</label></div>
+     <div class="field"><label>分配到學員 / 月份 <span class="hint">一筆匯款可分給多位學員、多個月</span></label>
+       <div id="p-allocs">${p.allocs.map(allocRow).join("")}</div>
+       <button class="btn sm" id="p-addalloc">＋ 再加一筆分配</button>
+       <div class="fh" id="p-sum"></div>
+     </div>
+     <div class="field"><label>備註</label><input class="txt" id="p-note" value="${esc(p.note||"")}"></div>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="p-save">儲存</button></div>`,"wide");
+
+  function refreshSum(){
+    const tot=num($("#p-amount",s).value);
+    const asum=$$("[data-af='amount']",s).reduce((a,el)=>a+num(el.value),0);
+    const el=$("#p-sum",s);
+    el.textContent=`分配合計 ${fmtP(asum)} ／ 總金額 ${fmtP(tot)}${Math.abs(asum-tot)>1?"　⚠ 不一致":"　✓"}`;
+    el.style.color=Math.abs(asum-tot)>1?"var(--bad)":"var(--ok)";
+  }
+  function autofillAlloc(rowEl){
+    const sid=$("[data-af='sid']",rowEl).value, ym=$("[data-af='ym']",rowEl).value;
+    const amtEl=$("[data-af='amount']",rowEl);
+    if(sid && /^\d{4}-\d{2}$/.test(ym) && !num(amtEl.value)){
+      const d=studentDue(ym,sid), paid=studentPaid(ym,sid).logged;
+      const remain=d.amount-paid;
+      if(remain>0){ amtEl.value=remain; refreshSum(); }
+    }
+    const stu=S.students.find(x=>x.id===sid);
+    const l5El=$("#p-last5",s);
+    if(stu && stu.last5 && !$("#p-cash",s).checked && !l5El.value.trim()) l5El.value=stu.last5;
+  }
+  s.addEventListener("input",e=>{
+    if(e.target.id==="p-amount"||e.target.dataset.af==="amount") refreshSum();
+  });
+  s.addEventListener("change",e=>{
+    if(e.target.dataset.af==="sid"||e.target.dataset.af==="ym") autofillAlloc(e.target.closest("[data-arow]"));
+    if(e.target.id==="p-cash"){ $("#p-last5",s).disabled=e.target.checked; }
+  });
+  s.addEventListener("click",e=>{
+    const rm=e.target.closest("[data-arm]");
+    if(rm){ const rows=$$("#p-allocs .alloc",s); if(rows.length>1) rows[+rm.dataset.arm].remove(); refreshSum(); return; }
+  });
+  $("#p-addalloc",s).onclick=()=>{
+    const i=$$("#p-allocs .alloc",s).length;
+    $("#p-allocs",s).insertAdjacentHTML("beforeend",allocRow({sid:"",ym:S.ui.ym,amount:0,kind:"course"},i));
+  };
+  refreshSum();
+
+  $("#p-save",s).onclick=()=>{
+   try{
+    const cash=$("#p-cash",s).checked;
+    const rec={
+      id:p.id, date:$("#p-date",s).value||today(), amount:num($("#p-amount",s).value),
+      payer:$("#p-payer",s).value.trim(), last5: cash?"":norm5($("#p-last5",s).value),
+      cash, note:$("#p-note",s).value.trim(),
+      allocs:$$("#p-allocs .alloc",s).map(r=>({
+        sid:$("[data-af='sid']",r).value, ym:$("[data-af='ym']",r).value.trim(),
+        amount:num($("[data-af='amount']",r).value), kind:$("[data-af='kind']",r).value,
+      })).filter(a=>a.sid&&a.ym),
+      matchTxnId:p.matchTxnId||null, matchDate:p.matchDate||null, bankPaid:p.bankPaid||false
+    };
+    if(!rec.allocs.length){ toast("請至少指定一位學員與月份","bad"); return; }
+    // 移除舊紀錄（可能換年度）
+    Object.keys(S.pays).forEach(y=>{ S.pays[y]=S.pays[y].filter(x=>x.id!==rec.id); });
+    const y=(rec.date||today()).slice(0,4);
+    payY(y).push(rec);
+    closeScrim(s);
+    INV_YEARS().concat([+y]).forEach(yy=>{ if(S.pays[yy]) pushPays(yy); });
+    pushPays(y);
+    toast("已儲存收款","ok");
+   }catch(err){ toast("儲存失敗："+(err&&err.message||err),"bad"); console.error(err); }
+  };
+}
+
+/* ---------------- dues ---------------- */
+function viewDues(){
+  const ym=S.ui.ym;
+  const roster=monthRoster(ym);
+  let tDue=0,tLog=0,tBank=0,tSess=0;
+  const rows=roster.map(s=>{
+    const d=studentDue(ym,s.id), p=studentPaid(ym,s.id);
+    tDue+=d.amount; tLog+=p.logged; tBank+=p.bank; tSess+=d.sessions;
+    const owe=d.amount-p.logged, unver=p.logged-p.bank;
+    let chip;
+    if(d.amount===0 && p.logged===0) chip=`<span class="chip mut">—</span>`;
+    else if(owe>TOL) chip=`<span class="chip bad"><span class="dot"></span>欠 ${fmtP(owe)}</span>`;
+    else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>待銀行核對</span>`;
+    else chip=`<span class="chip ok"><span class="dot"></span>已收齊</span>`;
+    return `<tr data-open-student="${s.id}" style="cursor:pointer">
+      <td><b>${esc(s.name)}</b></td>
+      <td class="num">${d.sessions}</td>
+      <td class="num">${fmt(d.amount)}</td>
+      <td class="num">${fmt(p.logged)}</td>
+      <td class="num">${fmt(p.bank)}</td>
+      <td class="num ${owe>TOL?'badp':''}">${fmt(owe)}</td>
+      <td>${chip}</td></tr>`;
+  }).join("");
+  return `
+  <div class="cards">
+    <div class="card"><div class="k">應收合計</div><div class="v">${fmt(tDue)}</div></div>
+    <div class="card"><div class="k">已收（業務登錄）</div><div class="v">${fmt(tLog)}</div><div class="sub">缺 ${fmt(tDue-tLog)}</div></div>
+    <div class="card"><div class="k">銀行已核對</div><div class="v">${fmt(tBank)}</div><div class="sub">已登未核 ${fmt(tLog-tBank)}</div></div>
+    <div class="card accent"><div class="k">未收</div><div class="v ${tDue-tLog>TOL?'neg':'pos'}">${fmt(tDue-tLog)}</div></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h3>${esc(ymLabel(ym))}　每位學員 應收 → 已收 → 核對</h3><div class="grow"></div>
+      <button class="btn sm" data-act="export-dues">⬇ 匯出 CSV</button></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>學員</th><th class="num">堂數</th><th class="num">應收</th><th class="num">已收</th><th class="num">銀行核對</th><th class="num">未收</th><th>狀態</th></tr></thead>
+      <tbody>${rows||`<tr><td colspan="7" class="empty">本月沒有資料</td></tr>`}</tbody>
+      <tfoot class="tfoot"><tr><td>合計（${roster.length} 位）</td><td class="num">${tSess}</td><td class="num">${fmt(tDue)}</td><td class="num">${fmt(tLog)}</td><td class="num">${fmt(tBank)}</td><td class="num">${fmt(tDue-tLog)}</td><td></td></tr></tfoot>
+    </table></div></div>
+  </div>
+  <p class="hint">「已收」＝業務在收款登錄填的金額；「銀行核對」＝該筆匯款已在銀行對帳勾稽。點學員看繳費明細。</p>`;
+}
+function studentModal(sid){
+  const s0=S.students.find(x=>x.id===sid); if(!s0) return;
+  const paysOf=allPays().filter(p=>(p.allocs||[]).some(a=>a.sid===sid))
+    .sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  // 各月彙總
+  const yms=[...new Set([
+    ...Object.keys(S.attend).flatMap(ym=>Object.keys(attM(ym).cells).filter(k=>k.startsWith(sid+"|")).map(()=>ym)),
+    ...paysOf.flatMap(p=>p.allocs.filter(a=>a.sid===sid).map(a=>a.ym))
+  ])].sort().reverse();
+  const monthRows=yms.map(ym=>{
+    const d=studentDue(ym,sid), p=studentPaid(ym,sid);
+    return `<tr><td class="num">${ym}</td><td class="num">${d.sessions}</td><td class="num">${fmt(d.amount)}</td>
+      <td class="num">${fmt(p.logged)}</td><td class="num ${d.amount-p.logged>TOL?'badp':''}">${fmt(d.amount-p.logged)}</td></tr>`;
+  }).join("");
+  const info=[
+    ["家長",s0.parent],["家長電話",s0.parentPhone],["學員手機",s0.mobile],
+    ["生日",s0.birthday?`${s0.birthday}　${ageFrom(s0.birthday)}`:""],
+    ["Email",s0.email],["匯款後五碼",s0.last5]
+  ].filter(x=>x[1]);
+  const s=scrim(`
+   <div class="mh"><h3>${esc(s0.name)}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     ${info.length?`<div class="tw" style="margin-bottom:12px"><table><tbody>${info.map(x=>`<tr><th style="width:96px">${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join("")}</tbody></table></div>`:""}
+     ${s0.note?`<p class="hint">📝 ${esc(s0.note)}</p>`:""}
+     <h4 style="font-size:13px;margin-bottom:6px">各月 應收 / 已收</h4>
+     <div class="tw"><table>
+       <thead><tr><th class="num">月</th><th class="num">堂</th><th class="num">應收</th><th class="num">已收</th><th class="num">未收</th></tr></thead>
+       <tbody>${monthRows||`<tr><td colspan="5" class="hint">無資料</td></tr>`}</tbody></table></div>
+     <h4 style="font-size:13px;margin:14px 0 6px">繳費紀錄</h4>
+     <div class="tw"><table>
+       <thead><tr><th>日期</th><th>方式</th><th class="num">分配金額</th><th>對帳</th></tr></thead>
+       <tbody>${paysOf.map(p=>{
+         const amt=p.allocs.filter(a=>a.sid===sid).reduce((x,a)=>x+num(a.amount),0);
+         return `<tr><td>${esc(p.date)}</td><td>${p.cash?"現金":"匯款 "+esc(p.last5||"")}</td><td class="num">${fmt(amt)}</td>
+           <td>${p.cash?"—":(p.matchTxnId||p.bankPaid)?'<span class="chip ok">已核對</span>':'<span class="chip warn">待對帳</span>'}</td></tr>`;
+       }).join("")||`<tr><td colspan="4" class="hint">無</td></tr>`}</tbody></table></div>
+   </div>
+   <div class="mf"><button class="btn ghost" data-edit-student="${sid}">編輯學員</button><button class="btn primary" data-x>關閉</button></div>`,"wide");
+}
+
+/* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
+function viewBankSide(side){
+  const y=S.ui.bankYear;
+  const R=reconcile(y);
+  const K=side==="pay"?R.course:R.inv;
+  const nm=side==="pay"?"課程收款":"裝備銷售";
+  const otherNm=side==="pay"?"裝備":"課程";
+  const stL=lbl=>({matched:"已對帳","matched-diff":"已對帳·差額","auto-ready":"可自動對帳",mismatch:"金額不符",orphan:"無對應收款","settled-l5":"後五碼已全數對帳","student-l5":"後五碼對到學員"}[lbl]||lbl);
+  const clsMap={matched:"ok","matched-diff":"warn","auto-ready":"acc",mismatch:"bad",orphan:"mut","settled-l5":"mut","student-l5":"acc"};
+  const shown=R.txnInfo.filter(ti=>side==="pay"?ti.payRel:ti.saleRel);
+  const txnRows=shown.map(ti=>{
+    const t=ti.txn, sd=ti[side];
+    let names=sd.mine.map(r=>esc(r.label)).join("、") || sd.cands.map(r=>esc(r.label)).join("、");
+    if(!names && sd.stuCands.length) names=sd.stuCands.map(x=>esc(x.name)).join("、")+"（學員後五碼）";
+    const canPay = side==="pay" && sd.stuCands.length && ["student-l5","orphan","mismatch"].includes(sd.status);
+    return `<tr>
+      <td class="nowrap">${esc(t.txnDate||t.postDate||"")}<div class="hint">${esc(t.summary||"")}</div></td>
+      <td class="num">${fmt(t.deposit)}${sd.otherSum?`<div class="hint">另有${otherNm} ${fmtP(sd.otherSum)}</div>`:""}</td>
+      <td>${esc(t.last5||"—")}</td>
+      <td class="hint">${names||"—"}</td>
+      <td><span class="chip ${clsMap[sd.status]||'mut'}">${stL(sd.status)}</span>${sd.status==="matched-diff"&&sd.diff?`<div class="hint diffbad">差 ${fmtP(sd.diff)}</div>`:""}</td>
+      <td class="right nowrap">
+        ${canPay?`<button class="btn sm primary" data-bankpay="${t.id}">建收款</button>`:""}
+        <button class="btn sm ghost" data-assign="${side}:${t.id}">指派</button>
+        <button class="btn sm ghost" data-ignore="${t.id}">${t.ignored?"取消忽略":"忽略"}</button>
+      </td></tr>`;
+  }).join("");
+  const openRecs=R.recInfo.filter(x=>x.st==="open" && x.rec.kind===side);
+  const manRecs=R.recs.filter(r=>r.kind===side && r.ref.bankPaid && !r.matchTxnId);
+  return `
+  <div class="cards">
+    <div class="card"><div class="k">${y} ${nm}應收帳款</div><div class="v">${fmt(K.recvTotal)}</div></div>
+    <div class="card"><div class="k">已對帳</div><div class="v">${fmt(K.recvPaid)}</div></div>
+    <div class="card"><div class="k">未對帳收款</div><div class="v ${K.recvOpen>TOL?'neg':''}">${fmt(K.recvOpen)}</div><div class="sub">${K.nOpen} 筆</div></div>
+    <div class="card"><div class="k">待處理入帳</div><div class="v ${(K.nMismatch+K.nOrphan)?'neg':''}">${K.nMismatch+K.nOrphan}</div><div class="sub">金額不符 ${K.nMismatch} · 無對應 ${K.nOrphan}</div></div>
+  </div>
+  <div class="panel">
+    <div class="ph"><h3>${y} 年 玉山銀行入帳（${nm}相關）</h3><div class="grow"></div>
+      ${K.nAuto?`<button class="btn primary sm" data-act="auto-match" data-side="${side}">▶ 執行自動對帳（${K.nAuto}）</button>`:""}
+      <button class="btn sm" data-act="import-bank">⬆ 匯入銀行明細</button>
+      ${R.txns.length?`<button class="btn sm danger" data-act="clear-bank">🗑 清空</button>`:""}</div>
+    ${side==="pay"&&K.nStudentL5?`<div class="pb" style="padding-bottom:0"><span class="chip acc"><span class="dot"></span>有 ${K.nStudentL5} 筆入帳的後五碼對到「學員資料」，可按該列「建收款」直接建立課程收款並對帳</span></div>`:""}
+    ${!shown.length?`<div class="empty"><div class="big">⇄</div>${R.deposits.length?`目前沒有跟「${nm}」相關的銀行入帳。`:`匯入玉山銀行交易明細（.xlsx／CSV）。兩個對帳分頁共用同一批明細。`}</div>`:`
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>入帳日 / 摘要</th><th class="num">金額</th><th>後五碼</th><th>對應收款</th><th>狀態</th><th></th></tr></thead>
+      <tbody>${txnRows}</tbody>
+    </table></div></div>`}
+  </div>
+  ${openRecs.length?`<div class="panel">
+    <div class="ph"><h3>尚未對到銀行的${nm}（${openRecs.length}）</h3><div class="grow"></div>
+      <span class="hint">只有一兩筆、不想匯入整份明細時，直接按「✓ 核銷」</span></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>日期</th><th>內容</th><th>後五碼</th><th class="num">金額</th><th></th></tr></thead>
+      <tbody>${openRecs.map(x=>`<tr><td>${esc(x.rec.date||"")}</td><td>${esc(x.rec.label)}</td><td>${esc(x.rec.last5||"—")}</td><td class="num">${fmt(x.rec.amount)}</td>
+        <td class="right"><button class="btn sm primary" data-mark-paid="${side}:${x.rec.id}">✓ 核銷</button></td></tr>`).join("")}</tbody>
+    </table></div></div></div>`:""}
+  ${manRecs.length?`<div class="panel">
+    <div class="ph"><h3>已手動核銷（未匯入銀行明細）（${manRecs.length}）</h3></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>核銷日</th><th>內容</th><th>後五碼</th><th class="num">金額</th><th></th></tr></thead>
+      <tbody>${manRecs.map(r=>`<tr><td>${esc(r.ref.matchDate||"")}</td><td>${esc(r.label)}</td><td>${esc(r.last5||"—")}</td><td class="num">${fmt(r.amount)}</td>
+        <td class="right"><button class="btn sm ghost" data-unmark-paid="${side}:${r.id}">取消核銷</button></td></tr>`).join("")}</tbody>
+    </table></div></div></div>`:""}
+  <p class="hint">誤差容忍 ±${TOL} 元。現金不列入。同一筆匯款若含課程＋裝備，兩個分頁各對一部分（金額欄會標「另有${otherNm}…」）。<br>
+  ${side==="pay"?"對帳來源：業務在「收款登錄」填的匯款。業務沒登錄但後五碼對到學員資料時，可按「建收款」直接建立並對帳。":"對帳來源：「裝備進銷存」裡付款方式為匯款的銷售。沒登錄的先去進銷存補登銷售。"}</p>`;
+}
+function assignModal(arg){
+  const y=S.ui.bankYear;
+  const [sidePart,idPart]=String(arg).includes(":")?arg.split(":"):[null,arg];
+  const R=reconcile(y);
+  const ti=R.txnInfo.find(x=>x.txn.id===idPart); if(!ti) return;
+  const t=ti.txn;
+  const side=sidePart||"pay";
+  const otherNm=side==="pay"?"裝備":"課程";
+  const sd=ti[side];
+  // 只列出「這一類」還沒對帳、或已對到這筆的收款
+  const open=R.recs.filter(r=>r.kind===side && (!r.matched || r.matchTxnId===t.id));
+  const s=scrim(`
+   <div class="mh"><h3>指派入帳 ${fmt(t.deposit)}（${esc(t.last5||"—")}）· ${side==="pay"?"課程":"裝備"}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">${esc(t.txnDate||t.postDate||"")} · ${esc(t.summary||"")}${sd.otherSum?`　—　另有${otherNm}已對 ${fmtP(sd.otherSum)}`:""}</p>
+     <div id="as-list">${open.map(r=>`
+       <label class="checkrow"><input type="checkbox" data-r="${r.id}" ${r.matchTxnId===t.id?"checked":""}>
+         <span class="grow">${esc(r.label)} <span class="hint">${r.date||""} · ${r.last5||"—"}</span></span>
+         <b class="num">${fmtP(r.amount)}</b></label>`).join("")||`<p class="hint">沒有可指派的${side==="pay"?"課程收款":"裝備銷售"}。${side==="pay"?"若這是學員的課程匯款，關掉此視窗按「建收款」。":"請先到「裝備進銷存」登錄這筆匯款銷售。"}</p>`}</div>
+     <div class="fh" id="as-sum"></div>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="as-save">套用</button></div>`,"wide");
+  function sum(){
+    const sel=$$("#as-list input:checked",s).map(c=>c.dataset.r);
+    let a=0; sel.forEach(id=>{ const r=open.find(x=>x.id===id); if(r) a+=r.amount; });
+    const target=sd.target;
+    const el=$("#as-sum",s);
+    el.textContent=`勾選合計 ${fmtP(a)} ／ 需湊 ${fmtP(target)}${sd.otherSum?`（入帳 ${fmtP(t.deposit)} 扣掉另一類 ${fmtP(sd.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓":"⚠ 差 "+fmtP(a-target)}`;
+    el.style.color=Math.abs(a-target)<=TOL?"var(--ok)":"var(--warn)";
+  }
+  s.addEventListener("change",sum); sum();
+  $("#as-save",s).onclick=()=>{
+   try{
+    const sel=new Set($$("#as-list input:checked",s).map(c=>c.dataset.r));
+    const date=t.txnDate||t.postDate||today();
+    open.forEach(r=>{
+      const on=sel.has(r.id);
+      if(side==="pay"){
+        const p=allPays().find(x=>x.id===r.id);
+        if(p){ if(on){ p.matchTxnId=t.id; p.matchDate=date; p.bankPaid=true; } else if(p.matchTxnId===t.id){ p.matchTxnId=null; } }
+      } else {
+        const m=allMoves().find(x=>x.id===r.id);
+        if(m){ if(on){ m.matchTxnId=t.id; m.bankPaid=true; } else if(m.matchTxnId===t.id){ m.matchTxnId=null; } }
+      }
+    });
+    closeScrim(s);
+    if(side==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
+    toast("已指派","ok");
+   }catch(err){ toast("指派失敗："+(err&&err.message||err),"bad"); console.error(err); }
+  };
+}
+
+/* 從銀行入帳直接建立課程收款並對帳（用學員資料裡的後五碼）*/
+function bankPayModal(txnId){
+  const y=S.ui.bankYear;
+  const R=reconcile(y);
+  const ti=R.txnInfo.find(x=>x.txn.id===txnId); if(!ti) return;
+  const t=ti.txn;
+  const date=t.txnDate||t.postDate||today();
+  const target=ti.pay.target;   // 入帳金額扣掉裝備已對的部分
+  const cand=ti.pay.stuCands.slice();
+  const others=S.students.filter(x=>!cand.some(c=>c.id===x.id)).sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  const rowH=(sid,checked)=>{
+    const stu=S.students.find(x=>x.id===sid)||{name:"?"};
+    return `<div class="alloc" data-brow>
+      <label class="grow" style="display:flex;gap:7px;align-items:center">
+        <input type="checkbox" data-bf="on" ${checked?"checked":""}>
+        <b>${esc(stu.name)}</b><span class="hint" data-bf="sid" data-sid="${sid}"></span>
+      </label>
+      <input class="txt" data-bf="ym" value="${esc(S.ui.ym)}" placeholder="YYYY-MM" style="font-family:'IBM Plex Mono';width:100px">
+      <input class="txt num" data-bf="amount" type="number" placeholder="金額" style="width:96px">
+      <button class="btn sm danger ghost" data-brm>×</button>
+    </div>`;
+  };
+  const s=scrim(`
+   <div class="mh"><h3>依後五碼建立課程收款 ${fmt(t.deposit)}（${esc(t.last5||"—")}）</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">${esc(date)} · ${esc(t.summary||"")}　—　後五碼對到：<b>${cand.map(x=>esc(x.name)).join("、")||"無"}</b></p>
+     <div id="bp-list">${cand.map(c=>rowH(c.id,true)).join("")}</div>
+     <div style="display:flex;gap:8px;align-items:center;margin:8px 0">
+       <select class="pick" id="bp-add"><option value="">＋ 加入其他學員…</option>${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join("")}</select>
+     </div>
+     <div class="fh" id="bp-sum"></div>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="bp-save">建立並對帳</button></div>`,"wide");
+
+  function fillAmt(row){
+    const sid=$("[data-bf='sid']",row).dataset.sid;
+    const ym=$("[data-bf='ym']",row).value.trim();
+    const amtEl=$("[data-bf='amount']",row);
+    if(/^\d{4}-\d{2}$/.test(ym) && !num(amtEl.value)){
+      const remain=studentDue(ym,sid).amount - studentPaid(ym,sid).logged;
+      if(remain>0) amtEl.value=remain;
+    }
+  }
+  function sum(){
+    let a=0;
+    $$("#bp-list [data-brow]",s).forEach(r=>{ if($("[data-bf='on']",r).checked) a+=num($("[data-bf='amount']",r).value); });
+    const el=$("#bp-sum",s);
+    el.textContent=`合計 ${fmtP(a)} ／ 需湊 ${fmtP(target)}${ti.pay.otherSum?`（入帳 ${fmtP(t.deposit)} 扣裝備 ${fmtP(ti.pay.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓":"⚠ 差 "+fmtP(a-target)}`;
+    el.style.color=Math.abs(a-target)<=TOL?"var(--ok)":"var(--warn)";
+  }
+  $$("#bp-list [data-brow]",s).forEach(fillAmt); sum();
+  s.addEventListener("input",e=>{ if(e.target.dataset.bf==="amount"||e.target.dataset.bf==="ym") sum(); });
+  s.addEventListener("change",e=>{
+    if(e.target.dataset.bf==="on") sum();
+    if(e.target.dataset.bf==="ym") fillAmt(e.target.closest("[data-brow]")), sum();
+  });
+  s.addEventListener("click",e=>{ const rm=e.target.closest("[data-brm]"); if(rm){ rm.closest("[data-brow]").remove(); sum(); }});
+  $("#bp-add",s).onchange=e=>{
+    const sid=e.target.value; if(!sid) return;
+    $("#bp-list",s).insertAdjacentHTML("beforeend",rowH(sid,true));
+    const row=$("#bp-list",s).lastElementChild; fillAmt(row); sum();
+    e.target.value=""; e.target.querySelector(`option[value="${sid}"]`)?.remove();
+  };
+  $("#bp-save",s).onclick=()=>{
+   try{
+    const allocs=[];
+    $$("#bp-list [data-brow]",s).forEach(r=>{
+      if(!$("[data-bf='on']",r).checked) return;
+      const sid=$("[data-bf='sid']",r).dataset.sid;
+      const ym=$("[data-bf='ym']",r).value.trim();
+      const amount=num($("[data-bf='amount']",r).value);
+      if(sid && /^\d{4}-\d{2}$/.test(ym) && amount) allocs.push({sid,ym,amount,kind:"course"});
+    });
+    if(!allocs.length){ toast("請至少勾選一位學員並填月份/金額","bad"); return; }
+    const yr=(date||today()).slice(0,4);
+    const allocSum=allocs.reduce((a,x)=>a+x.amount,0);
+    payY(yr).push({
+      id:uid(), date, amount:allocSum, payer:cand.map(x=>x.name).join("、"),
+      last5:norm5(t.last5), cash:false, note:ti.pay.otherSum?"由銀行對帳建立（此匯款另含裝備）":"由銀行對帳建立",
+      allocs, matchTxnId:t.id, matchDate:date, bankPaid:true
+    });
+    closeScrim(s);
+    INV_YEARS().concat([+yr]).forEach(yy=>{ if(S.pays[yy]) pushPays(yy); });
+    pushPays(yr);
+    toast("已建立收款並完成對帳","ok");
+   }catch(err){ toast("失敗："+(err&&err.message||err),"bad"); console.error(err); }
+  };
+}
+
+/* 手動核銷：不匯入銀行明細，直接標記某筆收款/銷售「銀行已到帳」*/
+function markPaidModal(arg){
+  const [kind,id]=String(arg).split(":");
+  const rec = kind==="pay" ? allPays().find(x=>x.id===id) : allMoves().find(x=>x.id===id);
+  if(!rec) return;
+  const label = kind==="pay" ? (rec.payer||studentNames(rec)||"課程費") : ((rec.buyer?rec.buyer+" · ":"")+itemName(rec.itemId)+" ×"+num(rec.qty));
+  const amt = kind==="pay" ? num(rec.amount) : num(rec.price)*num(rec.qty);
+  const s=scrim(`
+   <div class="mh"><h3>手動核銷 ${fmt(amt)}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">${esc(label)}　·　後五碼 ${esc(rec.last5||"—")}</p>
+     <div class="field"><label>銀行入帳日期</label><input class="txt" id="mp-date" type="date" value="${esc(rec.matchDate||today())}"></div>
+     <p class="hint">確認你已在銀行查到這筆入帳。核銷後這筆在「應收對帳」會計入「銀行核對」，但不會有銀行明細列可對差額。</p>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="mp-ok">核銷</button></div>`);
+  $("#mp-ok",s).onclick=()=>{
+    rec.bankPaid=true; rec.matchDate=$("#mp-date",s).value||today(); rec.matchTxnId=null;
+    closeScrim(s);
+    if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
+    toast("已核銷","ok");
+  };
+}
+function unmarkPaid(arg){
+  const [kind,id]=String(arg).split(":");
+  const rec = kind==="pay" ? allPays().find(x=>x.id===id) : allMoves().find(x=>x.id===id);
+  if(!rec) return;
+  confirmModal("取消這筆的手動核銷？會回到「尚未對到銀行」。",()=>{
+    rec.bankPaid=false; rec.matchDate=null;
+    if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
+    toast("已取消核銷","ok");
+  });
+}
+
+/* ---------------- inventory ---------------- */
+function viewInv(){
+  const y=S.ui.invYear;
+  const st=stock();
+  const stRows=Object.values(st).map(r=>`
+    <tr><td><b>${esc(r.item.name)}</b>${r.item.unit?`<span class="hint"> / ${esc(r.item.unit)}</span>`:""}</td>
+      <td class="num">${fmtP(r.in)}</td><td class="num">${fmtP(r.sold)}</td>
+      <td class="num ${r.left<0?'badp':''}"><b>${fmtP(r.left)}</b></td>
+      <td class="num">${fmt(r.salesAmt)}</td>
+      <td class="right"><button class="btn sm ghost" data-edit-item="${r.item.id}">編輯</button></td></tr>`).join("");
+  const moves=moveY(y).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const idset=new Set(moves.map(m=>m.id));
+  [...invSel].forEach(id=>{ if(!idset.has(id)) invSel.delete(id); });
+  const ins=moves.filter(m=>m.type!=="sale");
+  const sales=moves.filter(m=>m.type==="sale");
+  const tLbl={in:"進貨",transfer:"調入北屯"};
+
+  /* 進：依日期收合 */
+  const dgroups=[];
+  ins.forEach(m=>{ const d=m.date||"（無日期）"; let g=dgroups.find(x=>x.date===d); if(!g){ g={date:d,list:[]}; dgroups.push(g); } g.list.push(m); });
+  const inDetail=m=>`
+    <tr class="detrow ${invSel.has(m.id)?'selrow':''}">
+      <td><input type="checkbox" data-msel="${m.id}" ${invSel.has(m.id)?"checked":""}></td><td></td>
+      <td>${esc(tLbl[m.type]||m.type)}</td>
+      <td>${esc(itemName(m.itemId))}</td>
+      <td class="num">${fmtP(m.qty)}</td>
+      <td>${esc(m.by||"")}</td>
+      <td class="hint">${esc(m.note||"")}</td>
+      <td class="right nowrap"><button class="btn sm ghost" data-edit-move="${m.id}">編輯</button>
+        <button class="btn sm danger" data-del-move="${m.id}">刪</button></td>
+    </tr>`;
+  const inRows=dgroups.map(g=>{
+    const open=invOpen.has(g.date);
+    const q=g.list.reduce((a,m)=>a+num(m.qty),0);
+    const bys=[...new Set(g.list.map(m=>m.by).filter(Boolean))].join("、");
+    const nSel=g.list.filter(m=>invSel.has(m.id)).length;
+    return `<tr class="daterow" data-invdate="${esc(g.date)}" style="cursor:pointer">
+        <td>${nSel?`<span class="chip acc">${nSel}</span>`:""}</td>
+        <td class="nowrap"><b>${open?"▾":"▸"} ${esc(g.date)}</b><div class="hint">${g.list.length} 筆</div></td>
+        <td class="hint">調入北屯</td>
+        <td></td>
+        <td class="num">${fmtP(q)}</td>
+        <td class="hint">${esc(bys)}</td>
+        <td></td>
+        <td></td>
+      </tr>${open?g.list.map(inDetail).join(""):""}`;
+  }).join("");
+
+  /* 銷：逐筆 */
+  let tQty=0,tAmt=0;
+  const saleRows=sales.map(m=>{
+    const amt=num(m.price)*num(m.qty); tQty+=num(m.qty); tAmt+=amt;
+    const rst = m.cash ? `<span class="chip mut">現金</span>`
+      : (m.matchTxnId||m.bankPaid) ? `<span class="chip ok"><span class="dot"></span>已核對</span>`
+      : `<span class="chip warn"><span class="dot"></span>待對帳</span>`;
+    return `<tr class="${invSel.has(m.id)?'selrow':''}">
+      <td><input type="checkbox" data-msel="${m.id}" ${invSel.has(m.id)?"checked":""}></td>
+      <td class="nowrap">${esc(m.date||"")}</td>
+      <td><b>${esc(itemName(m.itemId))}</b></td>
+      <td class="num">${fmtP(m.qty)}</td>
+      <td class="num">${fmtP(m.price)}</td>
+      <td class="num"><b>${fmt(amt)}</b></td>
+      <td>${esc(m.buyer||"")}</td>
+      <td>${esc(m.by||"")}</td>
+      <td class="hint">${m.cash?"現金":"匯款 "+esc(m.last5||"")}</td>
+      <td>${rst}${isMgr()&&!m.cash&&!m.matchTxnId?(m.bankPaid?`<button class="btn sm ghost" data-unmark-paid="sale:${m.id}" style="margin-left:5px">取消</button>`:`<button class="btn sm primary" data-mark-paid="sale:${m.id}" style="margin-left:5px">✓ 核銷</button>`):""}</td>
+      <td class="right nowrap"><button class="btn sm ghost" data-edit-move="${m.id}">編輯</button>
+        <button class="btn sm danger" data-del-move="${m.id}">刪</button></td>
+    </tr>`;
+  }).join("");
+
+  const inAllOn=ins.length>0 && ins.every(m=>invSel.has(m.id));
+  const saleAllOn=sales.length>0 && sales.every(m=>invSel.has(m.id));
+  const stAll=Object.values(st);
+  const stLeft=stAll.reduce((a,r)=>a+r.left,0), stSales=stAll.reduce((a,r)=>a+r.salesAmt,0);
+  const stLow=stAll.filter(r=>r.left<=0).length;
+  return `
+  <div class="panel">
+    <div class="ph" data-toggle-stock style="cursor:pointer">
+      <h3>${stockOpen?"▾":"▸"} 北屯裝備結存</h3>
+      <span class="chip mut">${stAll.length} 品項 · 結存 ${fmtP(stLeft)} 件</span>
+      ${stLow?`<span class="chip bad">${stLow} 項已無庫存</span>`:""}
+      <div class="grow"></div>
+      <button class="btn sm" data-act="add-item">＋ 品項</button>
+      <button class="btn sm" data-act="export-stock">⬇ CSV</button></div>
+    ${!S.invItems.length?`<div class="empty"><div class="big">▧</div>先新增裝備品項（例：冰刀、護具、隊服）。</div>`
+    :stockOpen?`<div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>品項</th><th class="num">調入</th><th class="num">已售</th><th class="num">結存</th><th class="num">累計銷售額</th><th></th></tr></thead>
+      <tbody>${stRows}</tbody>
+      <tfoot class="tfoot"><tr><td>合計</td><td></td><td></td><td class="num">${fmtP(stLeft)}</td><td class="num">${fmt(stSales)}</td><td></td></tr></tfoot>
+    </table></div></div>`:""}
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>${y} 年 進貨 / 調入北屯</h3><div class="grow"></div>
+      ${invSel.size?`<button class="btn sm danger" data-act="del-moves-sel">🗑 刪除選取（${invSel.size}）</button>`:""}
+      <button class="btn sm" data-act="import-inv">⬆ 批量匯入</button>
+      <button class="btn primary sm" data-act="add-move-transfer">＋ 調入北屯</button></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="msel-all-in" ${inAllOn?"checked":""}></th><th>日期</th><th>類型</th><th>品項</th><th class="num">數量</th><th>入庫人員</th><th>備註</th><th></th></tr></thead>
+      <tbody>${inRows||`<tr><td colspan="8" class="empty">本年無進貨</td></tr>`}</tbody>
+    </table></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>${y} 年 銷售紀錄 <span class="hint">（${sales.length} 筆）</span></h3><div class="grow"></div>
+      ${invSel.size?`<button class="btn sm danger" data-act="del-moves-sel">🗑 刪除選取（${invSel.size}）</button>`:""}
+      <button class="btn sm" data-act="export-stock">⬇ CSV</button>
+      <button class="btn primary sm" data-act="add-move-sale">＋ 銷售</button></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th style="width:34px"><input type="checkbox" id="msel-all-sale" ${saleAllOn?"checked":""}></th><th>日期</th><th>品項</th><th class="num">數量</th><th class="num">單價</th><th class="num">金額</th><th>購買人</th><th>業務人員</th><th>付款</th><th>對帳</th><th></th></tr></thead>
+      <tbody>${saleRows||`<tr><td colspan="11" class="empty">本年無銷售</td></tr>`}</tbody>
+      ${sales.length?`<tfoot class="tfoot"><tr><td></td><td>合計</td><td></td><td class="num">${fmtP(tQty)}</td><td></td><td class="num">${fmt(tAmt)}</td><td colspan="5"></td></tr></tfoot>`:""}
+    </table></div></div>
+  </div>
+  <p class="hint">結存 =（進貨＋調入北屯）−（銷售）。裝備「匯款」銷售會列入「裝備銷售對帳」的應收帳款。</p>`;
+}
+function itemModal(id){
+  let it=id?S.invItems.find(x=>x.id===id):null;
+  const editing=!!it; if(!it) it={id:uid(),name:"",unit:"",note:""};
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯品項":"新增品項"}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="field"><label>品項名稱</label><input class="txt" id="it-name" value="${esc(it.name)}" placeholder="例：冰刀 / 護具 / 隊服"></div>
+     <div class="field"><label>單位（選填）</label><input class="txt" id="it-unit" value="${esc(it.unit||"")}" placeholder="雙 / 件 / 組"></div>
+     <div class="field"><label>備註</label><input class="txt" id="it-note" value="${esc(it.note||"")}"></div>
+   </div>
+   <div class="mf">${editing?`<button class="btn danger ghost" id="it-del">刪除</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="it-save">儲存</button></div>`);
+  $("#it-save",s).onclick=()=>{
+    const name=$("#it-name",s).value.trim(); if(!name){ toast("請填品項名稱","bad"); return; }
+    it.name=name; it.unit=$("#it-unit",s).value.trim(); it.note=$("#it-note",s).value.trim();
+    if(!editing) S.invItems.push(it);
+    closeScrim(s); pushItems(); toast("已儲存","ok");
+  };
+  if(editing) $("#it-del",s).onclick=()=>confirmModal(`刪除品項「${it.name}」？其異動紀錄仍會保留但顯示為已刪。`,()=>{
+    S.invItems=S.invItems.filter(x=>x.id!==it.id); closeScrim(s); pushItems(); toast("已刪除","ok");
+  });
+}
+function moveModal(kindOrId){
+  const y=S.ui.invYear;
+  const known=["in","transfer","sale"].includes(kindOrId);
+  let m=known?null:allMoves().find(x=>x.id===kindOrId);
+  const editing=!!m;
+  const kind=editing?m.type:kindOrId;
+  if(!m) m={id:uid(),type:kind,date:today(),itemId:S.invItems[0]?.id||"",qty:1,price:0,last5:"",cash:false,buyer:"",note:"",by:OP};
+  else m=clone(m);
+  const isSale=m.type==="sale";
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯":{in:"進貨",transfer:"調入北屯",sale:"裝備銷售"}[kind]}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="grid2">
+       <div class="field"><label>日期</label><input class="txt" id="m-date" type="date" value="${esc(m.date||today())}"></div>
+       <div class="field"><label>品項</label><select class="pick" id="m-item">${S.invItems.map(i=>`<option value="${i.id}" ${m.itemId===i.id?"selected":""}>${esc(i.name)}</option>`).join("")}</select></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>數量</label><input class="txt num" id="m-qty" type="number" value="${m.qty||1}"></div>
+       ${isSale?`<div class="field"><label>單價（售價）</label><input class="txt num" id="m-price" type="number" value="${m.price||""}"></div>`:`<div class="field"><label>&nbsp;</label><div class="hint">進貨不記成本</div></div>`}
+     </div>
+     ${isSale?`
+     <div class="grid2">
+       <div class="field"><label>購買人</label><input class="txt" id="m-buyer" value="${esc(m.buyer||"")}"></div>
+       <div class="field"><label>匯款後五碼</label><input class="txt" id="m-last5" value="${esc(m.last5||"")}" ${m.cash?"disabled":""}></div>
+     </div>
+     <div class="field"><label class="checkrow" style="margin:0"><input type="checkbox" id="m-cash" ${m.cash?"checked":""}> 現金（不進銀行對帳）</label></div>`:""}
+     <div class="grid2">
+       <div class="field"><label>備註</label><input class="txt" id="m-note" value="${esc(m.note||"")}"></div>
+       <div class="field"><label>${isSale?"業務人員":"入庫人員"}</label>
+         <input class="txt" id="m-by" value="${esc(m.by||OP)}" placeholder="姓名">
+         <div class="fh">預設帶入此裝置設定的姓名，可修改</div></div>
+     </div>
+   </div>
+   <div class="mf">${editing?`<button class="btn danger ghost" id="m-del">刪除</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="m-save">儲存</button></div>`);
+  if(isSale) s.addEventListener("change",e=>{ if(e.target.id==="m-cash") $("#m-last5",s).disabled=e.target.checked; });
+  $("#m-save",s).onclick=()=>{
+   try{
+    if(!$("#m-item",s).value){ toast("請先建立品項","bad"); return; }
+    const rec={ id:m.id, type:kind, date:$("#m-date",s).value||today(), itemId:$("#m-item",s).value,
+      qty:num($("#m-qty",s).value), note:$("#m-note",s).value.trim(),
+      by: $("#m-by",s).value.trim() || (editing ? m.by : OP) || "",
+      createdAt:m.createdAt||new Date().toISOString() };
+    if(isSale){ rec.price=num($("#m-price",s).value); rec.cash=$("#m-cash",s).checked;
+      rec.buyer=$("#m-buyer",s).value.trim(); rec.last5=rec.cash?"":norm5($("#m-last5",s).value);
+      rec.matchTxnId=m.matchTxnId||null; rec.bankPaid=m.bankPaid||false; }
+    Object.keys(S.invMoves).forEach(yy=>{ S.invMoves[yy]=S.invMoves[yy].filter(x=>x.id!==rec.id); });
+    const yy=(rec.date||today()).slice(0,4);
+    moveY(yy).push(rec);
+    closeScrim(s); pushMoves(yy);
+    toast("已儲存","ok");
+   }catch(err){ toast("儲存失敗："+(err&&err.message||err),"bad"); console.error(err); }
+  };
+  if(editing) $("#m-del",s).onclick=()=>confirmModal("刪除這筆異動？",()=>{
+    Object.keys(S.invMoves).forEach(yy=>{ S.invMoves[yy]=S.invMoves[yy].filter(x=>x.id!==m.id); });
+    closeScrim(s); INV_YEARS().forEach(pushMoves); toast("已刪除","ok");
+  });
+}
+
+/* ---------------- settings ---------------- */
+function viewSettings(){
+  const priceBlock=[1,2,3,4,5,6,0].map(wd=>{
+    const ss=S.settings.price[String(wd)]||[];
+    const weekend=(wd===0||wd===6);
+    return `<div style="border:1px solid var(--line-2);border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <b>週${WD[wd]}</b><span class="hint">${weekend?"假日":"平日"}</span><div class="grow" style="flex:1"></div>
+        <button class="btn sm" data-add-session="${wd}">＋ 場次</button>
+      </div>
+      ${ss.length?ss.map((x,i)=>`
+        <div class="rowline">
+          <input class="txt" data-sf="label" data-wd="${wd}" data-i="${i}" value="${esc(x.label)}" placeholder="場次名稱">
+          <input class="txt" data-sf="time" data-wd="${wd}" data-i="${i}" value="${esc(x.time||"")}" placeholder="時間">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="txt num" data-sf="price" data-wd="${wd}" data-i="${i}" type="number" value="${x.price}" style="width:90px">
+            <button class="btn sm danger ghost" data-del-session="${wd}:${i}">×</button>
+          </div>
+        </div>`).join(""):`<div class="hint">無場次</div>`}
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="panel">
+    <div class="ph"><h3>身分與權限</h3></div>
+    <div class="pb">
+      <p class="hint">目前身分：<b>${isMgr()?"管理者":"業務"}</b>。「課程對帳 / 裝備銷售對帳」分頁僅管理者可見（畫面層級區隔，非帳號權限）。</p>
+      <div class="field" style="max-width:320px"><label>你的姓名（這台裝置）</label>
+        <input class="txt" id="set-op" value="${esc(OP)}" placeholder="你的姓名">
+        <div class="fh">進貨單標記為「入庫人員」、銷售單標記為「業務人員」。也可從左下角設定。</div>
+      </div>
+      <button class="btn sm" id="set-op-save">儲存</button>
+      <div style="height:12px"></div>
+      <div class="field" style="max-width:320px"><label>管理者密碼（選填）</label>
+        <input class="txt" id="set-pin" value="${esc(S.settings.managerPin||"")}" placeholder="留空 = 任何人可切換為管理者">
+        <div class="fh">設定後，其他人要切換成「管理者」檢視需輸入此密碼。</div>
+      </div>
+      <button class="btn sm" id="set-pin-save">儲存密碼</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>價目表 / 場次（星期 × 場次 → 名稱・時間・單價）</h3></div>
+    <div class="pb">
+      ${priceBlock}
+      <button class="btn sm primary" id="price-save">儲存價目表</button>
+      <p class="hint" style="margin-top:8px">週一兩場的價格可自行對調；假日（週六日）可新增場次與價格。</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>學員名冊（${S.students.length}）</h3><div class="grow"></div>
+      <button class="btn sm primary" data-tab="students">前往「學員資料」→</button></div>
+    <div class="pb"><p class="hint">學員的家長、電話、生日、Email、匯款後五碼與新增／匯入，都在左側「學員資料」分頁。</p></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h3>資料</h3></div>
+    <div class="pb btnrow">
+      <button class="btn sm danger" id="wipe">🗑 清空全部資料</button>
+      <span class="hint">會刪除設定、學員、點名、收款、銀行、進銷存。</span>
+    </div>
+  </div>`;
+}
+function studentEditModal(id){
+  let st=id?S.students.find(x=>x.id===id):null;
+  const editing=!!st; if(!st) st={id:uid(),name:"",parent:"",parentPhone:"",birthday:"",mobile:"",email:"",last5:"",note:"",active:true};
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯學員":"新增學員"}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="grid2">
+       <div class="field"><label>學員姓名</label><input class="txt" id="st-name" value="${esc(st.name)}"></div>
+       <div class="field"><label>學員生日</label><input class="txt" id="st-birthday" type="date" value="${esc(st.birthday||"")}"></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>家長姓名</label><input class="txt" id="st-parent" value="${esc(st.parent||"")}"></div>
+       <div class="field"><label>家長電話</label><input class="txt" id="st-pphone" value="${esc(st.parentPhone||"")}" inputmode="tel"></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>學員 / 聯絡手機</label><input class="txt" id="st-mobile" value="${esc(st.mobile||"")}" inputmode="tel"></div>
+       <div class="field"><label>匯款帳號後五碼</label><input class="txt" id="st-last5" value="${esc(st.last5||"")}" inputmode="numeric" placeholder="12345"></div>
+     </div>
+     <div class="field"><label>Email</label><input class="txt" id="st-email" value="${esc(st.email||"")}"></div>
+     <div class="field"><label>備註</label><input class="txt" id="st-note" value="${esc(st.note||"")}" placeholder="程度、雙胞胎、繳費特例…"></div>
+     <div class="field"><label class="checkrow" style="margin:0"><input type="checkbox" id="st-active" ${st.active!==false?"checked":""}> 在學（取消勾選＝停用，不出現在點名表）</label></div>
+   </div>
+   <div class="mf">${editing?`<button class="btn danger ghost" id="st-del">刪除</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="st-save">儲存</button></div>`,"wide");
+  $("#st-save",s).onclick=()=>{
+    const name=$("#st-name",s).value.trim(); if(!name){ toast("請填姓名","bad"); return; }
+    st.name=name;
+    st.birthday=$("#st-birthday",s).value;
+    st.parent=$("#st-parent",s).value.trim();
+    st.parentPhone=$("#st-pphone",s).value.trim();
+    st.mobile=$("#st-mobile",s).value.trim();
+    st.last5=norm5($("#st-last5",s).value);
+    st.email=$("#st-email",s).value.trim();
+    st.note=$("#st-note",s).value.trim();
+    st.active=$("#st-active",s).checked;
+    if(!editing) S.students.push(st);
+    closeScrim(s); pushStudents(); toast("已儲存","ok");
+  };
+  if(editing) $("#st-del",s).onclick=()=>confirmModal(`刪除學員「${st.name}」？點名與收款紀錄會保留但顯示為已刪。`,()=>{
+    S.students=S.students.filter(x=>x.id!==st.id); closeScrim(s); pushStudents(); toast("已刪除","ok");
+  });
+}
+
+/* ---------------- role switch ---------------- */
+function switchRole(){
+  if(isMgr()){ ROLE="staff"; try{localStorage.setItem(ROLE_LS,ROLE);}catch(e){} rerender(); toast("已切換為業務檢視"); return; }
+  const go=()=>{ ROLE="manager"; try{localStorage.setItem(ROLE_LS,ROLE);}catch(e){} rerender(); toast("已切換為管理者檢視","ok"); };
+  if(S.settings.managerPin){
+    const s=scrim(`<div class="mh"><h3>輸入管理者密碼</h3><button class="x" data-x>×</button></div>
+      <div class="mb"><div class="field"><input class="txt" id="pin-in" type="password" placeholder="密碼"></div></div>
+      <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="pin-ok">確定</button></div>`);
+    $("#pin-in",s).focus();
+    const check=()=>{ if($("#pin-in",s).value===S.settings.managerPin){ closeScrim(s); go(); } else toast("密碼不對","bad"); };
+    $("#pin-ok",s).onclick=check;
+    $("#pin-in",s).addEventListener("keydown",e=>{ if(e.key==="Enter") check(); });
+  } else go();
+}
+
+/* ===================================================== import (xlsx / csv) */
+function parseTable(text){
+  text=text.replace(/\r/g,"");
+  const lines=text.split("\n").filter(l=>l.trim()!=="");
+  if(!lines.length) return {headers:[],rows:[]};
+  const delim=lines[0].includes("\t")?"\t":(lines[0].split(",").length>=lines[0].split(";").length?",":";");
+  const split=line=>{
+    const out=[]; let cur="",q=false;
+    for(let i=0;i<line.length;i++){ const c=line[i];
+      if(q){ if(c==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+      else{ if(c==='"') q=true; else if(c===delim){ out.push(cur); cur=""; } else cur+=c; }
+    }
+    out.push(cur); return out.map(x=>x.trim());
+  };
+  return {headers:split(lines[0]),rows:lines.slice(1).map(split)};
+}
+function pick(headers,cands){
+  for(let i=0;i<headers.length;i++){ const h=String(headers[i]).replace(/\s/g,"");
+    if(cands.some(c=>h.includes(c))) return i; }
+  return -1;
+}
+async function readXlsx(file){
+  const buf=await file.arrayBuffer();
+  const dv=new DataView(buf); const bytes=new Uint8Array(buf);
+  let eo=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-22-65536);i--){ if(dv.getUint32(i,true)===0x06054b50){ eo=i; break; } }
+  if(eo<0) throw new Error("非 xlsx");
+  const cdCount=dv.getUint16(eo+10,true), cdOff=dv.getUint32(eo+16,true);
+  const files={}; let p=cdOff;
+  for(let i=0;i<cdCount;i++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), compSize=dv.getUint32(p+20,true);
+    const nameLen=dv.getUint16(p+28,true), extraLen=dv.getUint16(p+30,true), commLen=dv.getUint16(p+32,true);
+    const lho=dv.getUint32(p+42,true);
+    const name=new TextDecoder().decode(bytes.subarray(p+46,p+46+nameLen));
+    files[name]={method,compSize,lho}; p+=46+nameLen+extraLen+commLen;
+  }
+  async function extract(name){
+    const f=files[name]; if(!f) return null;
+    const lnameLen=dv.getUint16(f.lho+26,true), lextraLen=dv.getUint16(f.lho+28,true);
+    const start=f.lho+30+lnameLen+lextraLen;
+    const comp=bytes.subarray(start,start+f.compSize);
+    if(f.method===0) return new TextDecoder().decode(comp);
+    const ds=new DecompressionStream("deflate-raw");
+    const ab=await new Response(new Blob([comp]).stream().pipeThrough(ds)).arrayBuffer();
+    return new TextDecoder().decode(new Uint8Array(ab));
+  }
+  const wbXml=await extract("xl/workbook.xml");
+  const relXml=await extract("xl/_rels/workbook.xml.rels");
+  const ssXml=await extract("xl/sharedStrings.xml");
+  const shared=[];
+  if(ssXml){ new DOMParser().parseFromString(ssXml,"application/xml").querySelectorAll("si").forEach(si=>{
+    let s=""; si.querySelectorAll("t").forEach(t=>s+=t.textContent); shared.push(s); }); }
+  const relMap={};
+  if(relXml){ new DOMParser().parseFromString(relXml,"application/xml").querySelectorAll("Relationship")
+    .forEach(r=>relMap[r.getAttribute("Id")]=r.getAttribute("Target")); }
+  const sheets=[];
+  new DOMParser().parseFromString(wbXml,"application/xml").querySelectorAll("sheet").forEach(sh=>{
+    const rid=sh.getAttribute("r:id")||sh.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+    let tgt=relMap[rid]||""; if(tgt && !tgt.startsWith("xl/")) tgt="xl/"+tgt.replace(/^\//,"");
+    sheets.push({name:sh.getAttribute("name"),target:tgt});
+  });
+  function colIdx(letters){ let n=0; for(const ch of letters) n=n*26+(ch.charCodeAt(0)-64); return n-1; }
+  async function sheetGrid(target){
+    const xml=await extract(target); if(!xml) return [];
+    const doc=new DOMParser().parseFromString(xml,"application/xml"); const grid=[];
+    doc.querySelectorAll("row").forEach(row=>{
+      const cells=[];
+      row.querySelectorAll("c").forEach(c=>{
+        const ref=c.getAttribute("r")||""; const col=colIdx(ref.replace(/\d/g,""));
+        const type=c.getAttribute("t"); const vEl=c.querySelector("v"); const isEl=c.querySelector("is");
+        let val="";
+        if(type==="s"&&vEl) val=shared[+vEl.textContent]||"";
+        else if(type==="inlineStr"&&isEl) val=isEl.textContent;
+        else if(vEl) val=vEl.textContent;
+        cells[col]=val;
+      });
+      grid.push(cells);
+    });
+    return grid;
+  }
+  return {sheets,sheetGrid};
+}
+function importModal(kind){
+  const titles={students:"匯入學員名單",bank:"匯入玉山銀行交易明細",inv:"批量匯入：調入北屯"};
+  const ph = kind==="students" ? "姓名\t備註\n王小明\t平日基礎"
+    : kind==="inv" ? "品項\t數量\t備註\n冰刀\t10\t\n護具\t5\t\n隊服\t20\t新款"
+    : "";
+  const s=scrim(`
+   <div class="mh"><h3>${titles[kind]}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     ${kind==="inv"?`<div class="field"><label>調撥日期（表格沒有「日期」欄時，整批都用這天）</label>
+       <input class="txt" id="im-date" type="date" value="${today()}"></div>
+       <p class="hint" style="margin-top:-4px;margin-bottom:12px">整批視為「調入北屯」。表格只需「品項、數量」兩欄（可再加「日期」「備註」）。品項不存在會自動新增。</p>`:""}
+     <div class="field"><label>方式一：選擇檔案（.xlsx 或 .csv）</label>
+       <input type="file" id="im-file" accept=".xlsx,.csv,.txt"></div>
+     <div id="im-sheet" style="display:none" class="field"><label>工作表</label><select class="pick" id="im-sheetsel"></select></div>
+     <div class="field"><label>方式二：從 Excel 複製整塊貼上（含標題列）</label>
+       <textarea class="txt" id="im-paste" rows="5" placeholder="${esc(ph)}"></textarea></div>
+     <button class="btn sm" id="im-parse">解析預覽</button>
+     <div id="im-preview" style="margin-top:12px"></div>
+   </div>
+   <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="im-do" disabled>匯入</button></div>`,"wide");
+  let parsed=null, xlsxObj=null;
+  $("#im-file",s).onchange=async ev=>{
+    const file=ev.target.files[0]; if(!file) return;
+    if(/\.xlsx$/i.test(file.name)){
+      try{ xlsxObj=await readXlsx(file);
+        $("#im-sheetsel",s).innerHTML=xlsxObj.sheets.map((sh,i)=>`<option value="${i}">${esc(sh.name)}</option>`).join("");
+        $("#im-sheet",s).style.display="block"; toast("已讀取 xlsx，選工作表後按解析預覽");
+      }catch(e){ toast("xlsx 解析失敗，請改用 CSV 或複製貼上","bad"); console.warn(e); }
+    } else { $("#im-paste",s).value=await file.text(); toast("已載入檔案內容"); }
+  };
+  $("#im-parse",s).onclick=async()=>{
+    let table;
+    if(xlsxObj && $("#im-sheet",s).style.display!=="none" && !$("#im-paste",s).value.trim()){
+      const grid=await xlsxObj.sheetGrid(xlsxObj.sheets[+$("#im-sheetsel",s).value].target);
+      let hi=grid.findIndex(r=>r&&r.filter(Boolean).length>=1);
+      if(hi<0){ toast("工作表沒有資料","bad"); return; }
+      const headers=(grid[hi]||[]).map(x=>String(x||"").trim());
+      const rows=grid.slice(hi+1).map(r=>headers.map((_,i)=>String((r&&r[i])||"").trim())).filter(r=>r.some(Boolean));
+      table={headers,rows};
+    } else table=parseTable($("#im-paste",s).value);
+    if(!table.headers.length){ toast("找不到資料","bad"); return; }
+    parsed=buildImport(kind,table,{date:$("#im-date",s)?.value||today()});
+    $("#im-preview",s).innerHTML=parsed.html;
+    $("#im-do",s).disabled=!parsed.count;
+  };
+  $("#im-do",s).onclick=()=>{ parsed.commit(); closeScrim(s); };
+}
+function buildImport(kind,table,opts){
+  opts=opts||{};
+  const H=table.headers;
+  if(kind==="students"){
+    let ni=pick(H,["學員名字","學員姓名","姓名","名字","學員","name"]); if(ni<0) ni=0;
+    const c={ parent:pick(H,["家長名字","家長姓名","家長","監護"]), pphone:pick(H,["家長電話","家長手機"]),
+      bd:pick(H,["學員生日","生日","出生"]), mob:pick(H,["手機號碼","手機","電話","聯絡"]),
+      mail:pick(H,["gmail","gamil","email","信箱","電子"]), l5:pick(H,["後五碼","末五碼","後5碼","五碼"]),
+      note:pick(H,["備註","note"]) };
+    const g=(r,i)=>i>=0?String(r[i]||"").trim():"";
+    const recs=table.rows.map(r=>({
+      name:g(r,ni), parent:g(r,c.parent), parentPhone:normPhone(g(r,c.pphone)),
+      birthday:normDate(g(r,c.bd)), mobile:normPhone(g(r,c.mob)), email:g(r,c.mail),
+      last5:norm5(g(r,c.l5)), note:g(r,c.note)
+    })).filter(x=>x.name && !["姓名","學員名字","學員姓名"].includes(x.name) && !/\t/.test(x.name) && !/^(基礎|進階|訓練營|成人)/.test(x.name));
+    const byName=new Map(S.students.map(s=>[s.name,s]));
+    let add=0,upd=0;
+    recs.forEach(x=>{ if(byName.has(x.name)) upd++; else add++; });
+    return {
+      count:recs.length,
+      html:`<p class="hint">找到 <b>${recs.length}</b> 筆有效資料：新增 ${add}、更新既有 ${upd}。</p>
+        <div class="tw"><table><thead><tr><th>學員</th><th>家長</th><th>電話</th><th>生日</th><th>後五碼</th></tr></thead>
+        <tbody>${recs.slice(0,20).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.parent)}</td><td>${esc(x.parentPhone||x.mobile)}</td><td>${esc(x.birthday)}</td><td>${esc(x.last5)}</td></tr>`).join("")}</tbody></table></div>`,
+      commit:()=>{
+        recs.forEach(x=>{
+          const ex=byName.get(x.name);
+          if(ex){ Object.assign(ex,{
+            parent:x.parent||ex.parent, parentPhone:x.parentPhone||ex.parentPhone, birthday:x.birthday||ex.birthday,
+            mobile:x.mobile||ex.mobile, email:x.email||ex.email, last5:x.last5||ex.last5, note:x.note||ex.note });
+          } else S.students.push(Object.assign({id:uid(),active:true},x));
+        });
+        pushStudents(); toast(`已匯入：新增 ${add}、更新 ${upd}`,"ok");
+      }
+    };
+  }
+  if(kind==="inv"){
+    const c={ item:pick(H,["品項","品名","裝備","商品","名稱","項目"]),
+      qty:pick(H,["數量","件數","數","調入","調撥"]),
+      date:pick(H,["日期","調撥日","入庫日"]), note:pick(H,["備註","note","說明"]) };
+    let iCol=c.item>=0?c.item:0;
+    let qCol=c.qty; if(qCol<0) qCol = iCol===0?1:0;   // 沒有「數量」標題時，取另一欄
+    const g=(r,i)=>i>=0?String(r[i]||"").trim():"";
+    const rawItems=[...S.invItems];
+    const nameToItem=n=>{ let it=rawItems.find(x=>x.name===n); if(!it){ it={id:uid(),name:n,unit:"",note:""}; rawItems.push(it); } return it; };
+    const recs=table.rows.map(r=>{
+      const iname=g(r,iCol); const qty=num(g(r,qCol));
+      if(!iname || iname==="品項" || !qty) return null;
+      const it=nameToItem(iname);
+      return { id:uid(), type:"transfer", date:normDate(g(r,c.date))||opts.date||today(),
+        itemId:it.id, _iname:iname, qty, price:0, buyer:"", last5:"", cash:false,
+        note:g(r,c.note), by:OP, createdAt:new Date().toISOString(), matchTxnId:null, bankPaid:false };
+    }).filter(Boolean);
+    const y=S.ui.invYear;
+    const newItems=rawItems.filter(it=>!S.invItems.some(x=>x.id===it.id));
+    const totQty=recs.reduce((a,x)=>a+x.qty,0);
+    return {
+      count:recs.length,
+      html:`<p class="hint">共 <b>${recs.length}</b> 個品項、合計 <b>${fmtP(totQty)}</b> 件，將以「調入北屯」寫入 ${y} 年${newItems.length?`；自動新增品項：${newItems.map(i=>esc(i.name)).join("、")}`:""}。</p>
+        <div class="tw"><table><thead><tr><th>日期</th><th>品項</th><th class="num">數量</th><th>備註</th></tr></thead>
+        <tbody>${recs.slice(0,30).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x._iname)}</td><td class="num">${fmtP(x.qty)}</td><td class="hint">${esc(x.note||"")}</td></tr>`).join("")}</tbody></table></div>`,
+      commit:()=>{
+        if(newItems.length){ S.invItems.push(...newItems); pushItems(); }
+        recs.forEach(x=>{ delete x._iname; moveY(y).push(x); });
+        pushMoves(y); toast(`已匯入 ${recs.length} 筆調入北屯`,"ok");
+      }
+    };
+  }
+  // bank — 玉山格式
+  const ci={ post:pick(H,["帳務日期"]), tdate:pick(H,["實際交易日期","交易日期"]), ttime:pick(H,["實際交易時間","交易時間"]),
+    sum:pick(H,["摘要"]), cur:pick(H,["幣別"]), wd:pick(H,["提"]), dep:pick(H,["存"]), bal:pick(H,["餘額"]),
+    memo:pick(H,["備註"]), acct:pick(H,["帳號","轉出入"]), seq:pick(H,["序號"]) };
+  const items=table.rows.map(r=>{
+    const acct=r[ci.acct]||"";
+    return { id:uid(), seq:r[ci.seq]||"", postDate:r[ci.post]||"", txnDate:r[ci.tdate]||"", txnTime:r[ci.ttime]||"",
+      summary:r[ci.sum]||"", currency:r[ci.cur]||"TWD", withdraw:num(r[ci.wd]), deposit:num(r[ci.dep]),
+      balance:num(r[ci.bal]), memo:r[ci.memo]||"", account:acct, last5:last5of(acct), ignored:false };
+  }).filter(x=>x.deposit>0||x.withdraw>0);
+  const y=S.ui.bankYear;
+  const keyOf=t=>[t.seq,t.postDate,t.txnDate,t.txnTime,t.withdraw,t.deposit,t.balance,t.account].join("|");
+  const existing=new Set(bankY(y).map(keyOf));
+  const fresh=items.filter(t=>!existing.has(keyOf(t)));
+  const dep=fresh.filter(t=>t.deposit>0);
+  return {
+    count:fresh.length,
+    html:`<p class="hint">共 ${items.length} 筆，新的 <b>${fresh.length}</b> 筆（入帳 ${dep.length} 筆）。重複自動略過。</p>
+      <div class="tw"><table><thead><tr><th>日期</th><th class="num">存入</th><th>後五碼</th><th>摘要</th></tr></thead>
+      <tbody>${dep.slice(0,12).map(t=>`<tr><td>${esc(t.txnDate||t.postDate)}</td><td class="num">${fmt(t.deposit)}</td><td>${esc(t.last5)}</td><td class="hint">${esc(t.summary)}</td></tr>`).join("")}</tbody></table></div>`,
+    commit:()=>{ bankY(y).push(...fresh); pushBank(y); toast(`已匯入 ${fresh.length} 筆銀行明細`,"ok"); }
+  };
+}
+
+/* ===================================================== CSV */
+async function saveCSV(name,rows){
+  const csv="﻿"+rows.map(r=>r.map(c=>{
+    const s=String(c??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+  }).join(",")).join("\r\n");
+  try{
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a"); a.href=url; a.download=name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    toast("已匯出","ok"); return;
+  }catch(e){ console.warn(e); }
+  scrim(`<div class="mh"><h3>${esc(name)}</h3><button class="x" data-x>×</button></div>
+    <div class="mb"><p class="hint">複製以下內容貼進 Excel／記事本另存：</p>
+    <textarea class="txt" rows="12" style="width:100%">${esc(csv)}</textarea></div>
+    <div class="mf"><button class="btn primary" data-x>關閉</button></div>`,"wide");
+}
+function exportDues(all){
+  const ym=S.ui.ym; const roster=monthRoster(ym);
+  const rows=[[`${ymLabel(ym)} 應收對帳`],[],["學員","堂數","應收","已收(登錄)","銀行核對","未收"]];
+  let tS=0,tD=0,tL=0,tB=0,n=0;
+  roster.forEach(s=>{
+    const d=studentDue(ym,s.id),p=studentPaid(ym,s.id);
+    if(!all && d.amount-p.logged<=TOL) return;
+    rows.push([s.name,d.sessions,d.amount,p.logged,p.bank,d.amount-p.logged]);
+    tS+=d.sessions; tD+=d.amount; tL+=p.logged; tB+=p.bank; n++;
+  });
+  rows.push([`合計（${n} 位）`,tS,tD,tL,tB,tD-tL]);
+  saveCSV(`${all?"應收對帳":"催繳"}_${ym}.csv`,rows);
+}
+function exportStock(){
+  const st=stock();
+  const y=S.ui.invYear;
+  const rows=[["北屯裝備結存"],[],["品項","單位","調入","已售","結存","累計銷售額"]];
+  Object.values(st).forEach(r=>rows.push([r.item.name,r.item.unit||"",r.in,r.sold,r.left,r.salesAmt]));
+  const ms=moveY(y).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const tLbl={in:"進貨",transfer:"調入北屯"};
+  rows.push([],[`${y} 年 進貨／調入北屯`],["日期","類型","品項","數量","入庫人員","備註"]);
+  ms.filter(m=>m.type!=="sale").forEach(m=>rows.push([m.date,tLbl[m.type]||m.type,itemName(m.itemId),m.qty,m.by||"",m.note||""]));
+  rows.push([],[`${y} 年 銷售紀錄`],["日期","品項","數量","單價","金額","購買人","業務人員","付款","對帳"]);
+  let tq=0,ta=0;
+  ms.filter(m=>m.type==="sale").forEach(m=>{
+    const a=num(m.price)*num(m.qty); tq+=num(m.qty); ta+=a;
+    rows.push([m.date,itemName(m.itemId),m.qty,m.price,a,m.buyer||"",m.by||"",m.cash?"現金":"匯款 "+(m.last5||""),m.cash?"—":(m.matchTxnId||m.bankPaid)?"已核對":"待對帳"]);
+  });
+  rows.push(["","合計","",tq,ta]);
+  saveCSV(`裝備進銷存_${y}.csv`,rows);
+}
+function exportAttend(){
+  const ym=S.ui.ym;
+  const dates=activeDates(ym);
+  const roster=monthRoster(ym);
+  const head=["學員",...dates.map(dt=>`${(+dt.slice(-2))}(${"日一二三四五六"[wdOf(dt)]})`),"堂數","應收"];
+  const rows=[[`${ymLabel(ym)} 點名表`],[],head];
+  roster.forEach(s=>{
+    const line=[s.name];
+    dates.forEach(dt=>{
+      line.push(cellEntries(ym,s.id,dt).slice().sort((a,b)=>a.slot-b.slot).map(e=>entryLabel(dt,e)).join(" / "));
+    });
+    const d=studentDue(ym,s.id);
+    line.push(d.sessions,d.amount);
+    rows.push(line);
+  });
+  // 各上課日出席人次
+  const foot=["出席人次"];
+  dates.forEach(dt=>{ let n=0; roster.forEach(s=>n+=cellEntries(ym,s.id,dt).length); foot.push(n); });
+  const totSess=roster.reduce((a,s)=>a+studentDue(ym,s.id).sessions,0);
+  const totDue=roster.reduce((a,s)=>a+studentDue(ym,s.id).amount,0);
+  foot.push(totSess,totDue);
+  rows.push([],foot);
+  saveCSV(`點名表_${ym}.csv`,rows);
+}
+
+/* ===================================================== wiring */
+document.addEventListener("click",e=>{
+  const roleBtn=e.target.closest("#roleSwitch"); if(roleBtn){ switchRole(); return; }
+  if(e.target.closest("#opEdit")){ opModal(); return; }
+  const tb=e.target.closest("[data-tab]");
+  if(tb){ const tab=tb.dataset.tab; if((tab==="bankCourse"||tab==="bankInv")&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); saveLS(); rerender(); return; }
+  const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
+  const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
+  const dr=e.target.closest("[data-invdate]");
+  if(dr){ const d=dr.dataset.invdate; invOpen.has(d)?invOpen.delete(d):invOpen.add(d); rerender(); return; }
+  if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
+  if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
+  const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
+  const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
+
+  const t=e.target.closest("[data-act],[data-edit-student],[data-del-student],[data-edit-pay],[data-del-pay],[data-edit-item],[data-edit-move],[data-del-move],[data-assign],[data-bankpay],[data-mark-paid],[data-unmark-paid],[data-ignore],[data-del-cls]");
+  if(!t) return;
+  const d=t.dataset;
+  if(d.act==="add-student") studentEditModal();
+  else if(d.act==="import-students") importModal("students");
+  else if(d.act==="edit-dates") editDatesModal();
+  else if(d.act==="add-pay") payModal();
+  else if(d.act==="add-item") itemModal();
+  else if(d.act==="add-move-transfer") moveModal("transfer");
+  else if(d.act==="add-move-sale") moveModal("sale");
+  else if(d.act==="import-bank") importModal("bank");
+  else if(d.act==="import-inv") importModal("inv");
+  else if(d.act==="auto-match") runAutoMatch(S.ui.bankYear, d.side||"pay");
+  else if(d.act==="export-dues") exportDues(true);
+  else if(d.act==="export-owe") exportDues(false);
+  else if(d.act==="export-attend") exportAttend();
+  else if(d.act==="export-stock") exportStock();
+  else if(d.act==="clear-bank"){ const y=S.ui.bankYear;
+    confirmModal(`清空 ${y} 年銀行明細？已對帳的收款仍保留「已核對」狀態（bankPaid），只失去差額提示。`,()=>{
+      bankY(y).forEach(()=>{});
+      // 蓋章
+      const R=reconcile(y);
+      R.recInfo.forEach(x=>{ if(x.st==="paid"||x.st==="paid-diff"){ x.rec.ref.bankPaid=true; x.rec.ref.matchTxnId=null; } });
+      S.bank[y]=[];
+      INV_YEARS().forEach(yy=>{ pushPays(yy); pushMoves(yy); }); pushBank(y);
+      toast("已清空銀行明細","ok");
+    }); }
+  else if(d.editStudent) studentEditModal(d.editStudent);
+  else if(d.delStudent){ const s=S.students.find(x=>x.id===d.delStudent);
+    confirmModal(`刪除學員「${s?.name}」？`,()=>{ S.students=S.students.filter(x=>x.id!==d.delStudent); pushStudents(); toast("已刪除","ok"); }); }
+  else if(d.editPay) payModal(d.editPay);
+  else if(d.delPay){ confirmModal("刪除這筆收款？",()=>{
+      Object.keys(S.pays).forEach(y=>{ S.pays[y]=S.pays[y].filter(x=>x.id!==d.delPay); });
+      INV_YEARS().forEach(pushPays); toast("已刪除","ok"); }); }
+  else if(d.editItem) itemModal(d.editItem);
+  else if(d.editMove) moveModal(d.editMove);
+  else if(d.delMove){ confirmModal("刪除這筆異動？",()=>{
+      Object.keys(S.invMoves).forEach(y=>{ S.invMoves[y]=S.invMoves[y].filter(x=>x.id!==d.delMove); });
+      invSel.delete(d.delMove); INV_YEARS().forEach(pushMoves); toast("已刪除","ok"); }); }
+  else if(d.act==="del-moves-sel"){ const ids=[...invSel]; if(!ids.length) return;
+      confirmModal(`刪除選取的 ${ids.length} 筆異動紀錄？此動作無法復原。`,()=>{
+        const set=new Set(ids);
+        Object.keys(S.invMoves).forEach(y=>{ S.invMoves[y]=S.invMoves[y].filter(x=>!set.has(x.id)); });
+        invSel.clear(); INV_YEARS().forEach(pushMoves); toast(`已刪除 ${ids.length} 筆`,"ok");
+      }); }
+  else if(d.assign) assignModal(d.assign);
+  else if(d.bankpay) bankPayModal(d.bankpay);
+  else if(d.markPaid) markPaidModal(d.markPaid);
+  else if(d.unmarkPaid) unmarkPaid(d.unmarkPaid);
+  else if(d.ignore){ const y=S.ui.bankYear; const tx=bankY(y).find(x=>x.id===d.ignore);
+    if(tx){ tx.ignored=!tx.ignored; pushBank(y); } }
+  else if(d.delCls){ S.settings.classes=S.settings.classes.filter(c=>c.id!==d.delCls); pushSettings(); }
+});
+
+document.addEventListener("click",e=>{
+  const addS=e.target.closest("[data-add-session]");
+  if(addS){ const wd=addS.dataset.addSession; (S.settings.price[wd]=S.settings.price[wd]||[]).push({id:uid(),label:"新場次",time:"",price:0}); pushSettings(); return; }
+  const delS=e.target.closest("[data-del-session]");
+  if(delS){ const [wd,i]=delS.dataset.delSession.split(":"); S.settings.price[wd].splice(+i,1); pushSettings(); return; }
+  if(e.target.id==="cls-add"){ S.settings.classes.push({id:uid(),name:"新班別",note:""}); pushSettings(); return; }
+});
+document.addEventListener("input",e=>{
+  const t=e.target;
+  if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= sf==="price"?num(t.value):t.value; } }
+  if(t.dataset.cf){ const c=S.settings.classes.find(x=>x.id===t.dataset.id); if(c) c[t.dataset.cf]=t.value; }
+});
+document.addEventListener("click",e=>{
+  if(e.target.id==="price-save"){ pushSettings(); toast("已儲存價目表","ok"); }
+  if(e.target.id==="cls-save"){
+    $$("[data-cf]").forEach(el=>{ const c=S.settings.classes.find(x=>x.id===el.dataset.id); if(c) c[el.dataset.cf]=el.value; });
+    pushSettings(); toast("已儲存班別","ok");
+  }
+  if(e.target.id==="set-pin-save"){ S.settings.managerPin=$("#set-pin").value.trim(); pushSettings(); toast("已儲存","ok"); }
+  if(e.target.id==="set-op-save"){ setOp($("#set-op").value); rerender(); toast("已儲存","ok"); }
+  if(e.target.id==="wipe"){
+    confirmModal("確定清空全部資料？此動作無法復原。",async()=>{
+      S.settings=defaultSettings(); S.students=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={};
+      saveLS();
+      if(DB){ try{
+        await DB.doc("config/settings").set(clone(S.settings));
+        await DB.doc("roster/students").set({students:[]});
+        await DB.doc("inv/items").set({items:[]});
+        for(const y of INV_YEARS()){ await DB.doc(`pay/${y}`).set({rows:[]}); await DB.doc(`bank/${y}`).set({txns:[]}); await DB.doc(`inv/moves-${y}`).set({moves:[]}); }
+      }catch(err){ console.warn(err); } }
+      rerender(); toast("已清空","ok");
+    });
+  }
+});
+
+/* month picker */
+document.addEventListener("click",e=>{
+  const mb=e.target.closest("[data-ym]");
+  if(mb){ S.ui.ym=shiftYM(S.ui.ym,+mb.dataset.ym); subAttend(S.ui.ym); saveLS(); rerender(); }
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="bankYear"){ S.ui.bankYear=+e.target.value; saveLS(); rerender(); }
+  if(e.target.id==="invYear"){ S.ui.invYear=+e.target.value; invSel.clear(); invOpen.clear(); saveLS(); rerender(); }
+  const ms=e.target.closest("[data-msel]");
+  if(ms){ const id=ms.dataset.msel; e.target.checked?invSel.add(id):invSel.delete(id); rerender(); }
+  if(e.target.id==="msel-all-in"||e.target.id==="msel-all-sale"){
+    const on=e.target.checked, saleSide=e.target.id==="msel-all-sale";
+    moveY(S.ui.invYear).forEach(m=>{
+      const isSale=m.type==="sale";
+      if(isSale!==saleSide) return;
+      on?invSel.add(m.id):invSel.delete(m.id);
+    });
+    rerender();
+  }
+});
+
+$("#themeBtn").onclick=()=>{
+  const r=document.documentElement;
+  const cur=r.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light");
+  const next=cur==="dark"?"light":"dark";
+  r.setAttribute("data-theme",next);
+  try{ localStorage.setItem("beitun-theme",next); }catch(e){}
+};
+try{ const th=localStorage.getItem("beitun-theme"); if(th) document.documentElement.setAttribute("data-theme",th); }catch(e){}
+
+/* ===================================================== boot */
+loadLS();
+rerender();
+initDB();
+</script>
+</body>
+</html>
