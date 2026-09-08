@@ -389,6 +389,7 @@ let invOpen=new Set();  // 進銷存「異動紀錄」展開的日期
 let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程點名「課程應收」是否展開（預設開）
+let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
@@ -856,8 +857,7 @@ function viewOverview(){
   <div class="cards">
     <div class="card"><div class="k">北屯結存</div><div class="v">${fmtP(totalLeft)} 件</div><div class="sub">${stItems.length} 個品項</div></div>
     <div class="card"><div class="k">${iy} 年銷售額</div><div class="v">${fmt(salesY)}</div><div class="sub">含現金＋匯款</div></div>
-    <div class="card"><div class="k">裝備應收帳款未收</div><div class="v ${RcInv.recvOpen>TOL?'neg':'pos'}">${fmt(RcInv.recvOpen)}</div><div class="sub">匯款銷售未對帳</div></div>
-    <div class="card"><div class="k">銷售待對帳</div><div class="v ${(RcInv.nMismatch+RcInv.nOrphan)?'neg':''}">${RcInv.nMismatch+RcInv.nOrphan} 筆</div><div class="sub">金額不符 ${RcInv.nMismatch} · 無對應 ${RcInv.nOrphan}</div></div>
+    <div class="card"><div class="k">裝備銷售尚未銷帳</div><div class="v ${RcInv.recvOpen>TOL?'neg':'pos'}">${fmt(RcInv.recvOpen)}</div><div class="sub">${RcInv.nOpen} 筆匯款銷售</div></div>
   </div>`;
 }
 
@@ -1324,7 +1324,7 @@ function viewBankSide(side){
   const stL=lbl=>({matched:"已對帳","matched-diff":"已對帳·差額","auto-ready":"可自動對帳",mismatch:"金額不符",orphan:"無對應收款","settled-l5":"後五碼已全數對帳","student-l5":"後五碼對到學員"}[lbl]||lbl);
   const clsMap={matched:"ok","matched-diff":"warn","auto-ready":"acc",mismatch:"bad",orphan:"mut","settled-l5":"mut","student-l5":"acc"};
   const shown=R.txnInfo.filter(ti=>side==="pay"?ti.payRel:ti.saleRel);
-  const txnRows=shown.map(ti=>{
+  const rowFor=ti=>{
     const t=ti.txn, sd=ti[side];
     let names=sd.mine.map(r=>esc(r.label)).join("、") || sd.cands.map(r=>esc(r.label)).join("、");
     if(!names && sd.stuCands.length) names=sd.stuCands.map(x=>esc(x.name)).join("、")+"（學員後五碼）";
@@ -1340,15 +1340,18 @@ function viewBankSide(side){
         <button class="btn sm ghost" data-assign="${side}:${t.id}">指派</button>
         <button class="btn sm ghost" data-ignore="${t.id}">${t.ignored?"取消忽略":"忽略"}</button>
       </td></tr>`;
-  }).join("");
+  };
+  const actionTi=shown.filter(ti=>ti[side].status!=="orphan");
+  const orphanTi=shown.filter(ti=>ti[side].status==="orphan");
+  const orphanSum=orphanTi.reduce((a,ti)=>a+num(ti.txn.deposit),0);
+  const txnRows=actionTi.map(rowFor).join("");
   const openRecs=R.recInfo.filter(x=>x.st==="open" && x.rec.kind===side);
   const manRecs=R.recs.filter(r=>r.kind===side && r.ref.bankPaid && !r.matchTxnId);
   return `
   <div class="cards">
     <div class="card"><div class="k">${y} ${nm}應收帳款</div><div class="v">${fmt(K.recvTotal)}</div></div>
-    <div class="card"><div class="k">已對帳</div><div class="v">${fmt(K.recvPaid)}</div></div>
-    <div class="card"><div class="k">未對帳收款</div><div class="v ${K.recvOpen>TOL?'neg':''}">${fmt(K.recvOpen)}</div><div class="sub">${K.nOpen} 筆</div></div>
-    <div class="card"><div class="k">待處理入帳</div><div class="v ${(K.nMismatch+K.nOrphan)?'neg':''}">${K.nMismatch+K.nOrphan}</div><div class="sub">金額不符 ${K.nMismatch} · 無對應 ${K.nOrphan}</div></div>
+    <div class="card"><div class="k">已銷帳</div><div class="v">${fmt(K.recvPaid)}</div></div>
+    <div class="card accent"><div class="k">尚未銷帳</div><div class="v ${K.recvOpen>TOL?'neg':'pos'}">${fmt(K.recvOpen)}</div><div class="sub">${K.nOpen} 筆</div></div>
   </div>
   <div class="panel">
     <div class="ph"><h3>${y} 年 玉山銀行入帳（${nm}相關）</h3><div class="grow"></div>
@@ -1356,11 +1359,20 @@ function viewBankSide(side){
       <button class="btn sm" data-act="import-bank">⬆ 匯入銀行明細</button>
       ${R.txns.length?`<button class="btn sm danger" data-act="clear-bank">🗑 清空</button>`:""}</div>
     ${side==="pay"&&K.nStudentL5?`<div class="pb" style="padding-bottom:0"><span class="chip acc"><span class="dot"></span>有 ${K.nStudentL5} 筆入帳的後五碼對到「學員資料」，可按該列「建收款」直接建立課程收款並對帳</span></div>`:""}
-    ${!shown.length?`<div class="empty"><div class="big">⇄</div>${R.deposits.length?`目前沒有跟「${nm}」相關的銀行入帳。`:`匯入玉山銀行交易明細（.xlsx／CSV）。兩個對帳分頁共用同一批明細。`}</div>`:`
-    <div class="pb flush"><div class="tw"><table>
+    ${!shown.length?`<div class="empty"><div class="big">⇄</div>${R.deposits.length?`目前沒有跟「${nm}」相關的銀行入帳。`:`匯入玉山銀行交易明細（.xlsx／CSV）。兩個對帳分頁共用同一批明細。`}</div>`
+    :`${actionTi.length?`<div class="pb flush"><div class="tw"><table>
       <thead><tr><th>入帳日 / 摘要</th><th class="num">金額</th><th>後五碼</th><th>對應收款</th><th>狀態</th><th></th></tr></thead>
       <tbody>${txnRows}</tbody>
-    </table></div></div>`}
+    </table></div></div>`:`<div class="pb"><span class="hint">目前沒有需要處理的入帳（有對到或有候選的都在這裡）。</span></div>`}
+    ${orphanTi.length?`<div style="border-top:1px solid var(--line-2)">
+      <div class="ph" data-toggle-bankorphan style="cursor:pointer;padding:10px 15px">
+        <span>${bankOrphanOpen?"▾":"▸"} 後五碼對不到任何${nm}的入帳</span>
+        <span class="chip mut">${orphanTi.length} 筆 · ${fmt(orphanSum)}</span></div>
+      ${bankOrphanOpen?`<div class="pb flush"><div class="tw"><table>
+        <thead><tr><th>入帳日 / 摘要</th><th class="num">金額</th><th>後五碼</th><th></th><th>狀態</th><th></th></tr></thead>
+        <tbody>${orphanTi.map(rowFor).join("")}</tbody>
+      </table></div></div>`:""}
+    </div>`:""}`}
   </div>
   ${openRecs.length?`<div class="panel">
     <div class="ph"><h3>尚未對到銀行的${nm}（${openRecs.length}）</h3><div class="grow"></div>
@@ -2209,6 +2221,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
+  if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
