@@ -363,8 +363,10 @@ function defaultSettings(){
            {id:uid(),label:"基礎曲棍",time:"19:00–19:50",price:800},
            {id:uid(),label:"成人體驗",time:"20:00–20:50",price:600}],
       "2":[{id:uid(),label:"進階1",time:"18:00–19:20",price:1200},{id:uid(),label:"進階2",time:"19:30–21:00",price:1200}],
-      "3":[{id:uid(),label:"訓練營",time:"18:00–19:20",price:1200,fullMonthDiscount:300},{id:uid(),label:"成人之夜",time:"19:30–21:00",price:600}]
+      "3":[{id:uid(),label:"訓練營",time:"18:00–19:20",price:1200},{id:uid(),label:"成人之夜",time:"19:30–21:00",price:600}]
     },
+    // 連續報名折扣：單價=price 的場次，同一學員連續 weeks 周都有上 → 折 amount
+    consecDiscount:{price:1200, weeks:4, amount:300},
     managerPin:""   // 空 = 不設密碼，任何人可切換成管理者檢視
   };
 }
@@ -386,7 +388,7 @@ let invSel=new Set();   // 進銷存「異動紀錄」批量選取
 let invOpen=new Set();  // 進銷存「異動紀錄」展開的日期
 let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
-let attDueOpen=false;   // 課程點名「課程應收」是否展開
+let attDueOpen=true;    // 課程點名「課程應收」是否展開（預設開）
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
@@ -499,24 +501,28 @@ function entryLabel(dateStr,e){
 }
 const SLOTMARK=["①","②","③","④","⑤","⑥"];
 
-/* 學員該月應收（由點名表算）。amount = 原價總額 − 全勤折扣 */
+function consecCfg(){ const c=S.settings.consecDiscount||{}; return {price:num(c.price)||1200, weeks:num(c.weeks)||4, amount:num(c.amount)||300}; }
+/* 學員該月應收（由點名表算）。amount = 原價總額 − 連續報名折扣 */
 function studentDue(ym,sid){
   const dates=activeDates(ym); let gross=0, sessions=0;
   dates.forEach(dt=>{
     cellEntries(ym,sid,dt).forEach(e=>{ gross+=priceOf(dt,e.slot); sessions++; });
   });
-  // 全勤折扣：某 (星期,場次) 若設了 fullMonthDiscount，且該學員在當月該星期的每個上課日都有上該場次 → 折扣
+  // 連續報名折扣：單價 = cd.price 的場次，該學員在該星期連續 cd.weeks 周都有上該場次 → 折 cd.amount（每個符合的場次各折一次）
+  const cd=consecCfg();
   const byWd={};
   dates.forEach(dt=>{ const w=wdOf(dt); (byWd[w]=byWd[w]||[]).push(dt); });
   const discounts=[];
   Object.keys(byWd).forEach(w=>{
+    const dts=byWd[w].slice().sort();
     (S.settings.price[String(w)]||[]).forEach((sess,slot)=>{
-      const disc=num(sess.fullMonthDiscount);
-      if(disc>0){
-        const dts=byWd[w];
-        if(dts.length>0 && dts.every(dt=>cellEntries(ym,sid,dt).some(e=>e.slot===slot)))
-          discounts.push({label:(sess.label||("第"+(slot+1)+"場"))+" 全勤", amount:disc});
-      }
+      if(num(sess.price)!==cd.price) return;
+      let run=0, best=0;
+      dts.forEach(dt=>{
+        if(cellEntries(ym,sid,dt).some(e=>e.slot===slot)){ run++; if(run>best) best=run; }
+        else run=0;
+      });
+      if(best>=cd.weeks) discounts.push({label:(sess.label||("第"+(slot+1)+"場"))+" 連續"+cd.weeks+"周", amount:cd.amount});
     });
   });
   const discount=discounts.reduce((a,d)=>a+d.amount,0);
@@ -976,8 +982,10 @@ function viewAttend(){
       const e=ents.find(x=>x.slot===slot);
       return `<td class="dcell ${e?'has':''}" data-cell="${s.id}|${dt}" data-focus="${slot}">${e?'✓ 有來':'<span class="hint">＋</span>'}</td>`;
     };
+    const dd=studentDue(ym,s.id);
     return `<tr>
-      <td data-cell="${s.id}|${dt}"><b>${esc(s.name)}</b></td>
+      <td data-cell="${s.id}|${dt}"><b>${esc(s.name)}</b>
+        <div class="hint num">本月 ${fmt(dd.amount)} · ${dd.sessions}堂${dd.discount?` <span class="okp">折-${fmtP(dd.discount)}</span>`:""}</div></td>
       ${ss.map((_,i)=>cellFor(i)).join("")}
     </tr>`;
   }).join("");
@@ -1712,16 +1720,17 @@ function viewSettings(){
         <button class="btn sm" data-add-session="${wd}">＋ 場次</button>
       </div>
       ${ss.length?ss.map((x,i)=>`
-        <div class="rowline" style="grid-template-columns:1.4fr 1fr auto auto auto">
+        <div class="rowline">
           <input class="txt" data-sf="label" data-wd="${wd}" data-i="${i}" value="${esc(x.label)}" placeholder="場次名稱">
           <input class="txt" data-sf="time" data-wd="${wd}" data-i="${i}" value="${esc(x.time||"")}" placeholder="時間">
-          <input class="txt num" data-sf="price" data-wd="${wd}" data-i="${i}" type="number" value="${x.price}" style="width:82px" title="單堂價">
-          <input class="txt num" data-sf="fullMonthDiscount" data-wd="${wd}" data-i="${i}" type="number" value="${x.fullMonthDiscount||''}" style="width:96px" placeholder="全勤折扣" title="該場次全月每堂都到，折扣此金額">
-          <button class="btn sm danger ghost" data-del-session="${wd}:${i}">×</button>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input class="txt num" data-sf="price" data-wd="${wd}" data-i="${i}" type="number" value="${x.price}" style="width:90px">
+            <button class="btn sm danger ghost" data-del-session="${wd}:${i}">×</button>
+          </div>
         </div>`).join(""):`<div class="hint">無場次</div>`}
-      <div class="fh">欄位：場次名稱 · 時間 · 單堂價 · 全勤折扣（留空=無；填了代表該場次「當月每個上課日都有到」就折這個金額）</div>
     </div>`;
   }).join("");
+  const cd=consecCfg();
 
   return `
   <div class="panel">
@@ -1746,8 +1755,17 @@ function viewSettings(){
     <div class="ph"><h3>價目表 / 場次（星期 × 場次 → 名稱・時間・單價）</h3></div>
     <div class="pb">
       ${priceBlock}
-      <button class="btn sm primary" id="price-save">儲存價目表</button>
-      <p class="hint" style="margin-top:8px">週一兩場的價格可自行對調；假日（週六日）可新增場次與價格。</p>
+      <div style="border-top:1px solid var(--line-2);margin-top:6px;padding-top:10px">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-2)">連續報名折扣</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+          單價 <input class="txt num" data-cd="price" type="number" value="${cd.price}" style="width:88px">
+          的場次，連續 <input class="txt num" data-cd="weeks" type="number" value="${cd.weeks}" style="width:60px">
+          周都有上 → 折 <input class="txt num" data-cd="amount" type="number" value="${cd.amount}" style="width:80px"> 元
+        </div>
+        <div class="fh">例：週二進階1/進階2、週三訓練營（都 1200），同一學員連續 4 周都有上該場次 → 該場次折 300；不同場次各折一次。</div>
+      </div>
+      <button class="btn sm primary" id="price-save" style="margin-top:10px">儲存價目表 / 折扣</button>
+      <p class="hint" style="margin-top:8px">假日（週六日）可新增場次與價格。折扣算得對的前提是「課程點名 → 上課日」要正確。</p>
     </div>
   </div>
 
@@ -2214,7 +2232,8 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("input",e=>{
   const t=e.target;
-  if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= (sf==="price"||sf==="fullMonthDiscount")?num(t.value):t.value; } }
+  if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= sf==="price"?num(t.value):t.value; } }
+  if(t.dataset.cd){ if(!S.settings.consecDiscount) S.settings.consecDiscount={price:1200,weeks:4,amount:300}; S.settings.consecDiscount[t.dataset.cd]=num(t.value); }
   if(t.dataset.cf){ const c=S.settings.classes.find(x=>x.id===t.dataset.id); if(c) c[t.dataset.cf]=t.value; }
 });
 document.addEventListener("click",e=>{
