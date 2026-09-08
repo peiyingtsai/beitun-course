@@ -359,11 +359,11 @@ function defaultSettings(){
     classes:[],
     // price[weekday 0-6] = [{id,label(場次名稱),time,price}]；場次名稱即課程名
     price:{
-      "1":[{id:uid(),label:"基礎滑冰",time:"18:00–19:00",price:600},
-           {id:uid(),label:"基礎曲棍",time:"19:00–20:00",price:800},
-           {id:uid(),label:"成人體驗",time:"20:00–21:00",price:600}],
+      "1":[{id:uid(),label:"基礎滑冰",time:"18:00–18:50",price:600},
+           {id:uid(),label:"基礎曲棍",time:"19:00–19:50",price:800},
+           {id:uid(),label:"成人體驗",time:"20:00–20:50",price:600}],
       "2":[{id:uid(),label:"進階1",time:"18:00–19:20",price:1200},{id:uid(),label:"進階2",time:"19:30–21:00",price:1200}],
-      "3":[{id:uid(),label:"訓練營",time:"18:00–19:20",price:1200},{id:uid(),label:"成人之夜",time:"19:30–21:00",price:600}]
+      "3":[{id:uid(),label:"訓練營",time:"18:00–19:20",price:1200,fullMonthDiscount:300},{id:uid(),label:"成人之夜",time:"19:30–21:00",price:600}]
     },
     managerPin:""   // 空 = 不設密碼，任何人可切換成管理者檢視
   };
@@ -499,13 +499,28 @@ function entryLabel(dateStr,e){
 }
 const SLOTMARK=["①","②","③","④","⑤","⑥"];
 
-/* 學員該月應收（由點名表算）*/
+/* 學員該月應收（由點名表算）。amount = 原價總額 − 全勤折扣 */
 function studentDue(ym,sid){
-  const dates=activeDates(ym); let sum=0, sessions=0;
+  const dates=activeDates(ym); let gross=0, sessions=0;
   dates.forEach(dt=>{
-    cellEntries(ym,sid,dt).forEach(e=>{ sum+=priceOf(dt,e.slot); sessions++; });
+    cellEntries(ym,sid,dt).forEach(e=>{ gross+=priceOf(dt,e.slot); sessions++; });
   });
-  return {amount:sum,sessions};
+  // 全勤折扣：某 (星期,場次) 若設了 fullMonthDiscount，且該學員在當月該星期的每個上課日都有上該場次 → 折扣
+  const byWd={};
+  dates.forEach(dt=>{ const w=wdOf(dt); (byWd[w]=byWd[w]||[]).push(dt); });
+  const discounts=[];
+  Object.keys(byWd).forEach(w=>{
+    (S.settings.price[String(w)]||[]).forEach((sess,slot)=>{
+      const disc=num(sess.fullMonthDiscount);
+      if(disc>0){
+        const dts=byWd[w];
+        if(dts.length>0 && dts.every(dt=>cellEntries(ym,sid,dt).some(e=>e.slot===slot)))
+          discounts.push({label:(sess.label||("第"+(slot+1)+"場"))+" 全勤", amount:disc});
+      }
+    });
+  });
+  const discount=discounts.reduce((a,d)=>a+d.amount,0);
+  return {gross, discount, discounts, amount:gross-discount, sessions};
 }
 /* 學員該月已收 / 已核對（由收款登錄的分配算，跨年度找）*/
 function studentPaid(ym,sid){
@@ -853,36 +868,40 @@ function enrolledStudents(ym,roster){
 /* 課程點名頁底部：本月依價目表算出的課程收費總額 + 各學員報名/應收統計 */
 function attDuePanel(ym,roster){
   const enrolled=enrolledStudents(ym,roster);
-  const sessTot={}; let gSess=0,gAmt=0;
+  const sessTot={}; let gSess=0, gGross=0, gDisc=0;
   const rows=enrolled.map(s=>{
-    const b=studentDueBreakdown(ym,s.id);
-    gSess+=b.sessions; gAmt+=b.amount;
+    const b=studentDueBreakdown(ym,s.id), d=studentDue(ym,s.id);
+    gSess+=b.sessions; gGross+=d.gross; gDisc+=d.discount;
     Object.entries(b.byLabel).forEach(([l,v])=>{ const t=(sessTot[l]=sessTot[l]||{count:0,amount:0}); t.count+=v.count; t.amount+=v.amount; });
     const detail=Object.entries(b.byLabel).map(([l,v])=>`${esc(l)} ×${v.count}`).join("、");
     return `<tr data-open-student="${s.id}" style="cursor:pointer">
       <td><b>${esc(s.name)}</b></td><td class="hint">${detail}</td>
-      <td class="num">${b.sessions}</td><td class="num">${fmt(b.amount)}</td></tr>`;
+      <td class="num">${b.sessions}</td>
+      <td class="num">${fmt(d.gross)}</td>
+      <td class="num ${d.discount?'okp':''}">${d.discount?"-"+fmtP(d.discount):"—"}</td>
+      <td class="num"><b>${fmt(d.amount)}</b></td></tr>`;
   }).join("");
   const sessRows=Object.entries(sessTot).sort((a,b)=>b[1].amount-a[1].amount)
     .map(([l,v])=>`<tr><td>${esc(l)}</td><td class="num">${v.count}</td><td class="num">${fmt(v.amount)}</td></tr>`).join("");
+  const gNet=gGross-gDisc;
   return `<div class="panel">
     <div class="ph" data-toggle-attdue style="cursor:pointer">
       <h3>${attDueOpen?"▾":"▸"} ${esc(ymLabel(ym))} 課程應收（依點名 × 價目表）</h3>
-      <span class="chip acc">${enrolled.length} 位報名 · ${gSess} 堂 · ${fmt(gAmt)}</span>
+      <span class="chip acc">${enrolled.length} 位 · ${gSess} 堂 · 應收 ${fmt(gNet)}${gDisc?`（折 -${fmtP(gDisc)}）`:""}</span>
       <div class="grow"></div>
       <button class="btn sm" data-act="export-attdue">⬇ CSV</button>
       <button class="btn sm" data-tab="dues">看已收/對帳 →</button></div>
     ${attDueOpen?`<div class="pb flush">
       <div class="tw"><table>
-        <thead><tr><th>場次（課程）</th><th class="num">全月總堂數</th><th class="num">應收金額</th></tr></thead>
+        <thead><tr><th>場次（課程）</th><th class="num">全月總堂數</th><th class="num">原價金額</th></tr></thead>
         <tbody>${sessRows||`<tr><td colspan="3" class="empty">本月尚無登記</td></tr>`}</tbody>
-        <tfoot class="tfoot"><tr><td>合計</td><td class="num">${gSess}</td><td class="num">${fmt(gAmt)}</td></tr></tfoot>
+        <tfoot class="tfoot"><tr><td>原價合計</td><td class="num">${gSess}</td><td class="num">${fmt(gGross)}</td></tr></tfoot>
       </table></div>
       <div class="pb" style="padding:8px 15px 4px;font-size:11px;letter-spacing:.06em;color:var(--faint)">各學員報名情況</div>
       <div class="tw"><table>
-        <thead><tr><th>學員</th><th>場次明細</th><th class="num">堂數</th><th class="num">應收</th></tr></thead>
-        <tbody>${rows||`<tr><td colspan="4" class="empty">本月尚無學員登記課程</td></tr>`}</tbody>
-        <tfoot class="tfoot"><tr><td>合計（${enrolled.length} 位）</td><td></td><td class="num">${gSess}</td><td class="num">${fmt(gAmt)}</td></tr></tfoot>
+        <thead><tr><th>學員</th><th>場次明細</th><th class="num">堂數</th><th class="num">原價</th><th class="num">折扣</th><th class="num">應收</th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="6" class="empty">本月尚無學員登記課程</td></tr>`}</tbody>
+        <tfoot class="tfoot"><tr><td>合計（${enrolled.length} 位）</td><td></td><td class="num">${gSess}</td><td class="num">${fmt(gGross)}</td><td class="num ${gDisc?'okp':''}">${gDisc?"-"+fmtP(gDisc):"—"}</td><td class="num">${fmt(gNet)}</td></tr></tfoot>
       </table></div>
     </div>`:""}
   </div>`;
@@ -924,7 +943,7 @@ function viewAttend(){
       }).join("");
       const d=studentDue(ym,s.id);
       return `<tr><td class="stick" data-open-student="${s.id}" style="cursor:pointer">${esc(s.name)}
-        <div class="hint num">${fmt(d.amount)} · ${d.sessions}堂</div></td>${cells}</tr>`;
+        <div class="hint num">${fmt(d.amount)} · ${d.sessions}堂${d.discount?` <span class="okp">折-${fmtP(d.discount)}</span>`:""}</div></td>${cells}</tr>`;
     }).join("");
     return `<div class="panel">${head}
       <div class="gridwrap"><table class="grid">
@@ -1179,7 +1198,7 @@ function viewDues(){
     return `<tr data-open-student="${s.id}" style="cursor:pointer">
       <td><b>${esc(s.name)}</b></td>
       <td class="num">${d.sessions}</td>
-      <td class="num">${fmt(d.amount)}</td>
+      <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)}・折 -${fmtP(d.discount)}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td>
       <td class="num">${fmt(p.bank)}</td>
       <td class="num ${owe>TOL?'badp':''}">${fmt(owe)}</td>
@@ -1214,7 +1233,8 @@ function studentModal(sid){
   ])].sort().reverse();
   const monthRows=yms.map(ym=>{
     const d=studentDue(ym,sid), p=studentPaid(ym,sid);
-    return `<tr><td class="num">${ym}</td><td class="num">${d.sessions}</td><td class="num">${fmt(d.amount)}</td>
+    return `<tr><td class="num">${ym}</td><td class="num">${d.sessions}</td>
+      <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)} 折 -${fmtP(d.discount)}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td><td class="num ${d.amount-p.logged>TOL?'badp':''}">${fmt(d.amount-p.logged)}</td></tr>`;
   }).join("");
   const info=[
@@ -1692,14 +1712,14 @@ function viewSettings(){
         <button class="btn sm" data-add-session="${wd}">＋ 場次</button>
       </div>
       ${ss.length?ss.map((x,i)=>`
-        <div class="rowline">
+        <div class="rowline" style="grid-template-columns:1.4fr 1fr auto auto auto">
           <input class="txt" data-sf="label" data-wd="${wd}" data-i="${i}" value="${esc(x.label)}" placeholder="場次名稱">
           <input class="txt" data-sf="time" data-wd="${wd}" data-i="${i}" value="${esc(x.time||"")}" placeholder="時間">
-          <div style="display:flex;gap:6px;align-items:center">
-            <input class="txt num" data-sf="price" data-wd="${wd}" data-i="${i}" type="number" value="${x.price}" style="width:90px">
-            <button class="btn sm danger ghost" data-del-session="${wd}:${i}">×</button>
-          </div>
+          <input class="txt num" data-sf="price" data-wd="${wd}" data-i="${i}" type="number" value="${x.price}" style="width:82px" title="單堂價">
+          <input class="txt num" data-sf="fullMonthDiscount" data-wd="${wd}" data-i="${i}" type="number" value="${x.fullMonthDiscount||''}" style="width:96px" placeholder="全勤折扣" title="該場次全月每堂都到，折扣此金額">
+          <button class="btn sm danger ghost" data-del-session="${wd}:${i}">×</button>
         </div>`).join(""):`<div class="hint">無場次</div>`}
+      <div class="fh">欄位：場次名稱 · 時間 · 單堂價 · 全勤折扣（留空=無；填了代表該場次「當月每個上課日都有到」就折這個金額）</div>
     </div>`;
   }).join("");
 
@@ -2044,15 +2064,15 @@ async function saveCSV(name,rows){
 }
 function exportDues(all){
   const ym=S.ui.ym; const roster=monthRoster(ym);
-  const rows=[[`${ymLabel(ym)} 應收對帳`],[],["學員","堂數","應收","已收(登錄)","銀行核對","未收"]];
-  let tS=0,tD=0,tL=0,tB=0,n=0;
+  const rows=[[`${ymLabel(ym)} 應收對帳`],[],["學員","堂數","原價","折扣","應收","已收(登錄)","銀行核對","未收"]];
+  let tS=0,tG=0,tDs=0,tD=0,tL=0,tB=0,n=0;
   roster.forEach(s=>{
     const d=studentDue(ym,s.id),p=studentPaid(ym,s.id);
     if(!all && d.amount-p.logged<=TOL) return;
-    rows.push([s.name,d.sessions,d.amount,p.logged,p.bank,d.amount-p.logged]);
-    tS+=d.sessions; tD+=d.amount; tL+=p.logged; tB+=p.bank; n++;
+    rows.push([s.name,d.sessions,d.gross,d.discount?-d.discount:"",d.amount,p.logged,p.bank,d.amount-p.logged]);
+    tS+=d.sessions; tG+=d.gross; tDs+=d.discount; tD+=d.amount; tL+=p.logged; tB+=p.bank; n++;
   });
-  rows.push([`合計（${n} 位）`,tS,tD,tL,tB,tD-tL]);
+  rows.push([`合計（${n} 位）`,tS,tG,tDs?-tDs:"",tD,tL,tB,tD-tL]);
   saveCSV(`${all?"應收對帳":"催繳"}_${ym}.csv`,rows);
 }
 function exportStock(){
@@ -2101,18 +2121,16 @@ function exportAttDue(){
   const ym=S.ui.ym, roster=monthRoster(ym);
   const enrolled=enrolledStudents(ym,roster);
   const rows=[[`${ymLabel(ym)} 課程應收（依點名 × 價目表）`],[]];
-  // 各場次
-  const sessTot={}; let gS=0,gA=0;
-  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id); gS+=b.sessions; gA+=b.amount;
+  const sessTot={}; let gS=0,gGross=0,gDisc=0;
+  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id), d=studentDue(ym,s.id); gS+=b.sessions; gGross+=d.gross; gDisc+=d.discount;
     Object.entries(b.byLabel).forEach(([l,v])=>{ const t=(sessTot[l]=sessTot[l]||{count:0,amount:0}); t.count+=v.count; t.amount+=v.amount; }); });
-  rows.push(["== 各場次 =="],["場次","全月總堂數","應收金額"]);
+  rows.push(["== 各場次（原價）=="],["場次","全月總堂數","原價金額"]);
   Object.entries(sessTot).sort((a,b)=>b[1].amount-a[1].amount).forEach(([l,v])=>rows.push([l,v.count,v.amount]));
-  rows.push(["合計",gS,gA],[]);
-  // 各學員
-  rows.push(["== 各學員報名情況 =="],["學員","場次明細","堂數","應收"]);
-  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id);
-    rows.push([s.name,Object.entries(b.byLabel).map(([l,v])=>`${l}×${v.count}`).join("、"),b.sessions,b.amount]); });
-  rows.push([`合計（${enrolled.length} 位）`,"",gS,gA]);
+  rows.push(["原價合計",gS,gGross],[]);
+  rows.push(["== 各學員報名情況 =="],["學員","場次明細","堂數","原價","折扣","應收"]);
+  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id), d=studentDue(ym,s.id);
+    rows.push([s.name,Object.entries(b.byLabel).map(([l,v])=>`${l}×${v.count}`).join("、"),b.sessions,d.gross,d.discount?-d.discount:"",d.amount]); });
+  rows.push([`合計（${enrolled.length} 位）`,"",gS,gGross,gDisc?-gDisc:"",gGross-gDisc]);
   saveCSV(`課程應收_${ym}.csv`,rows);
 }
 
@@ -2196,7 +2214,7 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("input",e=>{
   const t=e.target;
-  if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= sf==="price"?num(t.value):t.value; } }
+  if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= (sf==="price"||sf==="fullMonthDiscount")?num(t.value):t.value; } }
   if(t.dataset.cf){ const c=S.settings.classes.find(x=>x.id===t.dataset.id); if(c) c[t.dataset.cf]=t.value; }
 });
 document.addEventListener("click",e=>{
