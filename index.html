@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09c">
+<meta name="app-build" content="2026-09-09d">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -383,9 +383,11 @@ function defaultSettings(){
     managerPin:""   // 空 = 不設密碼，任何人可切換成管理者檢視
   };
 }
-/* 每周成本類別（管理者用的損益表）*/
-const COST_CATS=[
-  ["ice","冰場冰時費用"],
+/* 成本類別（管理者用的損益表）：冰時費用每月結算，其餘每周輸入 */
+const COST_MONTHLY=[
+  ["ice","冰場冰時費用"]
+];
+const COST_WEEKLY=[
   ["pt","PT 教練費用"],
   ["staff","台中人員費用"],
   ["transport","交通費用"],
@@ -394,6 +396,7 @@ const COST_CATS=[
   ["meal","餐飲費用"],
   ["misc","其他雜項"]
 ];
+const COST_CATS=[...COST_MONTHLY,...COST_WEEKLY];
 let S={
   settings:defaultSettings(),
   students:[],            // {id,name,note,active}
@@ -402,7 +405,7 @@ let S={
   bank:{},                // year -> [ txn ]
   invItems:[],            // {id,name,unit,note}
   invMoves:{},            // year -> [ {id,type:in|transfer|sale,date,itemId,qty,price,last5,cash,buyer,note,matchTxnId,bankPaid} ]
-  cost:{},                // ym -> { weeks: { "<週一date>": { cat: {amount, note} } } }
+  cost:{},                // ym -> { monthly: { ice:{amount,note} }, weeks: { "<週一date>": { cat:{amount,note} } } }
   ui:{ tab:"overview", ym:curYM(), bankYear:new Date().getFullYear(), invYear:new Date().getFullYear() }
 };
 let ROLE = (()=>{ try{ return localStorage.getItem(ROLE_LS)||"staff"; }catch(e){ return "staff"; } })();
@@ -415,9 +418,10 @@ let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程點名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
+let pnlWeekOpen=new Set(); // 每月成本收益：展開的周（週一 date）
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
-function costM(ym){ if(!S.cost[ym]) S.cost[ym]={weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; return S.cost[ym]; }
+function costM(ym){ if(!S.cost[ym]) S.cost[ym]={monthly:{},weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; if(!S.cost[ym].monthly) S.cost[ym].monthly={}; return S.cost[ym]; }
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
 function bankY(y){ if(!S.bank[y]) S.bank[y]=[]; return S.bank[y]; }
 function moveY(y){ if(!S.invMoves[y]) S.invMoves[y]=[]; return S.invMoves[y]; }
@@ -491,8 +495,9 @@ function subAttend(ym){
 function subCost(ym){
   if(!DB||subs["cost"+ym]) return;
   subs["cost"+ym]=DB.doc(`cost/${ym}`).onSnapshot(sn=>{
-    S.cost[ym]= sn.exists ? clone(sn.data()) : {weeks:{}};
+    S.cost[ym]= sn.exists ? clone(sn.data()) : {monthly:{},weeks:{}};
     if(!S.cost[ym].weeks) S.cost[ym].weeks={};
+    if(!S.cost[ym].monthly) S.cost[ym].monthly={};
     saveLS(); rerender();
   },e=>console.warn("cost",e));
 }
@@ -548,7 +553,18 @@ function weekRevenue(ym,dates){
   return sum;
 }
 function weekCostItems(ym,monday){ return (costM(ym).weeks[monday])||{}; }
-function weekCostTotal(ym,monday){ const it=weekCostItems(ym,monday); return COST_CATS.reduce((a,c)=>a+num(it[c[0]]&&it[c[0]].amount),0); }
+function weekCostTotal(ym,monday){ const it=weekCostItems(ym,monday); return COST_WEEKLY.reduce((a,c)=>a+num(it[c[0]]&&it[c[0]].amount),0); }
+function monthlyCostItems(ym){ return costM(ym).monthly||{}; }
+function monthlyCostTotal(ym){ const it=monthlyCostItems(ym); return COST_MONTHLY.reduce((a,c)=>a+num(it[c[0]]&&it[c[0]].amount),0); }
+/* 該月各成本類別的全月金額（ice 取月結、其餘各周加總）*/
+function monthCatTotals(ym){
+  const out={};
+  COST_MONTHLY.forEach(c=>{ const it=monthlyCostItems(ym); out[c[0]]=num(it[c[0]]&&it[c[0]].amount); });
+  COST_WEEKLY.forEach(c=>{ out[c[0]]=monthWeeks(ym).reduce((a,w)=>a+num((weekCostItems(ym,w.monday)[c[0]]||{}).amount),0); });
+  return out;
+}
+function monthCostTotal(ym){ return monthlyCostTotal(ym)+monthWeeks(ym).reduce((a,w)=>a+weekCostTotal(ym,w.monday),0); }
+function monthRevenue(ym){ return monthWeeks(ym).reduce((a,w)=>a+weekRevenue(ym,w.dates),0); }
 function wdOf(dateStr){ const [y,m,d]=dateStr.split("-").map(Number); return new Date(y,m-1,d).getDay(); }
 function sessionsFor(dateStr){ return S.settings.price[String(wdOf(dateStr))]||[]; }
 function priceOf(dateStr,slot){ const ss=sessionsFor(dateStr); return ss[slot]?num(ss[slot].price):0; }
@@ -757,7 +773,7 @@ const NAV=[
   ["dues","應收對帳","∑"],
   ["students","學員資料","☷"],
   ["_sep"],
-  ["pnl","每周成本收益","％",true],
+  ["pnl","每月成本收益","％",true],
   ["bankCourse","課程對帳","⇄",true],
   ["bankInv","裝備銷售對帳","⇆",true],
   ["_sep"],
@@ -773,7 +789,7 @@ function renderNav(){
   }).join("");
 }
 function renderTop(){
-  const titleMap={overview:"總覽",attend:"課程點名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",pnl:"每周成本收益",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
+  const titleMap={overview:"總覽",attend:"課程點名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",pnl:"每月成本收益",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
   let h=`<h2>${titleMap[S.ui.tab]||""}</h2><div class="grow"></div>`;
   if(["overview","attend","dues","pnl"].includes(S.ui.tab)){
     h+=`<div class="mpick"><label>月份</label><div class="mo">
@@ -807,7 +823,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09c";
+const APP_BUILD="2026-09-09d";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1390,66 +1406,92 @@ function adjustModal(arg){
   const cl=$("#aj-clear",m); if(cl) cl.onclick=()=>commit(0,"");
 }
 
-/* ---------------- 每周成本收益（管理者）---------------- */
+/* ---------------- 每月成本收益（管理者），可展開看各周成本 ---------------- */
 function viewPnl(){
   const ym=S.ui.ym;
   subCost(ym);
   const weeks=monthWeeks(ym);
-  let mRev=0,mCost=0;
-  const catTot={};
-  weeks.forEach(w=>{ const it=weekCostItems(ym,w.monday); COST_CATS.forEach(c=>{ catTot[c[0]]=(catTot[c[0]]||0)+num(it[c[0]]&&it[c[0]].amount); }); });
-  const weekPanels=weeks.map((w,wi)=>{
+  const mRev=monthRevenue(ym);
+  const mCost=monthCostTotal(ym);
+  const mNet=mRev-mCost;
+  const cat=monthCatTotals(ym);
+  const mi=monthlyCostItems(ym);
+
+  // 冰時費用（每月結算）
+  const iceRows=COST_MONTHLY.map(c=>{
+    const it=mi[c[0]]||{};
+    return `<tr>
+      <td>${c[1]}<div class="hint">每月結算</div></td>
+      <td class="num"><input class="txt num" style="width:120px;text-align:right" data-costm="${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0"></td>
+      <td><input class="txt" data-costm="${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註"></td>
+    </tr>`;
+  }).join("");
+
+  // 各周（其餘類別按周輸入），可逐周展開
+  const weekBlocks=weeks.map((w,wi)=>{
     const rev=weekRevenue(ym,w.dates);
-    const items=weekCostItems(ym,w.monday);
     const cost=weekCostTotal(ym,w.monday);
-    mRev+=rev; mCost+=cost;
+    const items=weekCostItems(ym,w.monday);
+    const open=pnlWeekOpen.has(w.monday);
     const a=w.dates[0].slice(5).replace("-","/"), b=w.dates[w.dates.length-1].slice(5).replace("-","/");
-    const net=rev-cost;
-    const costRows=COST_CATS.map(c=>{
-      const it=items[c[0]]||{};
-      return `<tr>
-        <td>${c[1]}</td>
-        <td class="num"><input class="txt num" style="width:110px;text-align:right" data-cost="${w.monday}|${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0"></td>
-        <td><input class="txt" data-cost="${w.monday}|${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註"></td>
-      </tr>`;
-    }).join("");
-    return `<div class="panel">
-      <div class="ph"><h3>第 ${wi+1} 周　${a}–${b}</h3><span class="hint">${w.dates.length} 個上課日（週${w.dates.map(d=>WD[wdOf(d)]).join("、")}）</span>
-        <div class="grow"></div>
-        <span class="chip ${net>=0?'ok':'bad'}">收 ${fmt(rev)} · 成本 ${fmt(cost)} · 淨 ${fmt(net)}</span></div>
-      <div class="pb flush"><div class="tw"><table>
+    const form=open?`<div class="pb flush"><div class="tw"><table>
         <thead><tr><th>成本類別</th><th class="num" style="width:130px">金額</th><th>備註</th></tr></thead>
-        <tbody>${costRows}</tbody>
-        <tfoot class="tfoot">
-          <tr><td>成本合計</td><td class="num">${fmt(cost)}</td><td></td></tr>
-          <tr><td>課程收入（依點名 · 原價）</td><td class="num">${fmt(rev)}</td><td></td></tr>
-          <tr><td><b>本周淨利</b></td><td class="num"><b class="${net>=0?'okp':'badp'}">${fmt(net)}</b></td><td></td></tr>
-        </tfoot>
-      </table></div></div>
+        <tbody>${COST_WEEKLY.map(c=>{
+          const it=items[c[0]]||{};
+          return `<tr><td>${c[1]}</td>
+            <td class="num"><input class="txt num" style="width:110px;text-align:right" data-cost="${w.monday}|${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0"></td>
+            <td><input class="txt" data-cost="${w.monday}|${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註"></td></tr>`;
+        }).join("")}</tbody>
+        <tfoot class="tfoot"><tr><td>本周成本（不含冰時）</td><td class="num">${fmt(cost)}</td><td></td></tr></tfoot>
+      </table></div></div>`:"";
+    return `<div class="panel">
+      <div class="ph" data-pnlweek="${w.monday}" style="cursor:pointer">
+        <h3>${open?"▾":"▸"} 第 ${wi+1} 周　${a}–${b}</h3>
+        <span class="hint">${w.dates.length} 堂（週${w.dates.map(d=>WD[wdOf(d)]).join("、")}）</span>
+        <div class="grow"></div>
+        <span class="chip mut">收 ${fmt(rev)}</span><span class="chip ${cost?'warn':'mut'}">周成本 ${fmt(cost)}</span></div>
+      ${form}
     </div>`;
   }).join("");
+
   return `
   <div class="cards">
     <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRev)}</div><div class="sub">依點名 × 價目表（原價）</div></div>
-    <div class="card"><div class="k">成本合計</div><div class="v">${fmt(mCost)}</div></div>
-    <div class="card accent"><div class="k">淨利</div><div class="v ${mRev-mCost>=0?'pos':'neg'}">${fmt(mRev-mCost)}</div></div>
+    <div class="card"><div class="k">成本合計</div><div class="v">${fmt(mCost)}</div><div class="sub">冰時 ${fmt(monthlyCostTotal(ym))} ＋ 各周 ${fmt(mCost-monthlyCostTotal(ym))}</div></div>
+    <div class="card accent"><div class="k">本月淨利</div><div class="v ${mNet>=0?'pos':'neg'}">${fmt(mNet)}</div></div>
   </div>
   <div class="btnrow" style="margin-bottom:14px">
     <button class="btn primary sm" data-act="save-cost">💾 儲存成本</button>
     <span class="hint">改完金額／備註後按此儲存（即時同步給其他管理者）</span>
   </div>
-  ${weekPanels||`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`}
-  ${weeks.length?`<div class="panel">
-    <div class="ph"><h3>${esc(ymLabel(ym))} 成本分類彙總</h3></div>
+
+  <div class="panel">
+    <div class="ph"><h3>本月固定成本（冰時費用）</h3></div>
     <div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>類別</th><th class="num">全月金額</th></tr></thead>
-      <tbody>${COST_CATS.map(c=>`<tr><td>${c[1]}</td><td class="num">${fmt(catTot[c[0]]||0)}</td></tr>`).join("")}</tbody>
-      <tfoot class="tfoot"><tr><td>成本合計</td><td class="num">${fmt(mCost)}</td></tr>
-        <tr><td>課程收入</td><td class="num">${fmt(mRev)}</td></tr>
-        <tr><td><b>本月淨利</b></td><td class="num"><b class="${mRev-mCost>=0?'okp':'badp'}">${fmt(mRev-mCost)}</b></td></tr></tfoot>
+      <thead><tr><th>類別</th><th class="num" style="width:140px">金額</th><th>備註</th></tr></thead>
+      <tbody>${iceRows}</tbody>
+    </table></div></div>
+  </div>
+
+  <h3 style="margin:18px 0 8px;font-size:13px;letter-spacing:.04em;color:var(--muted)">各周成本（點標題展開輸入）</h3>
+  ${weekBlocks||`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`}
+
+  ${weeks.length?`<div class="panel">
+    <div class="ph"><h3>${esc(ymLabel(ym))} 損益彙總</h3></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>項目</th><th class="num">全月金額</th></tr></thead>
+      <tbody>
+        <tr><td>課程收入（原價）</td><td class="num">${fmt(mRev)}</td></tr>
+        ${COST_CATS.map(c=>`<tr><td class="hint">－ ${c[1]}</td><td class="num">${fmt(cat[c[0]]||0)}</td></tr>`).join("")}
+      </tbody>
+      <tfoot class="tfoot">
+        <tr><td>成本合計</td><td class="num">${fmt(mCost)}</td></tr>
+        <tr><td><b>本月淨利</b></td><td class="num"><b class="${mNet>=0?'okp':'badp'}">${fmt(mNet)}</b></td></tr>
+      </tfoot>
     </table></div></div>
   </div>`:""}
-  <p class="hint">「課程收入」＝該周點名產生的課程費（原價，未扣折扣）；折扣是整月結算，在「應收對帳」看。成本按周填，只有管理者看得到、可編輯。</p>`;
+  <p class="hint">「課程收入」＝點名產生的課程費（原價，未扣折扣，折扣整月結算見「應收對帳」）。<br>
+  冰時費用每月填一次；其餘 7 類按周填（展開該周）。只有管理者看得到、可編輯。</p>`;
 }
 
 /* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
@@ -2360,6 +2402,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
+  const pw=e.target.closest("[data-pnlweek]"); if(pw && !e.target.closest("button")){ const k=pw.dataset.pnlweek; pnlWeekOpen.has(k)?pnlWeekOpen.delete(k):pnlWeekOpen.add(k); rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
@@ -2437,6 +2480,12 @@ document.addEventListener("input",e=>{
     if(!wk[monday]) wk[monday]={};
     if(!wk[monday][cat]) wk[monday][cat]={};
     wk[monday][cat][field]= field==="amount"?num(t.value):t.value;
+  }
+  if(t.dataset.costm){
+    const [cat,field]=t.dataset.costm.split("|");
+    const mo=costM(S.ui.ym).monthly;
+    if(!mo[cat]) mo[cat]={};
+    mo[cat][field]= field==="amount"?num(t.value):t.value;
   }
 });
 document.addEventListener("click",e=>{
