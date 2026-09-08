@@ -386,6 +386,7 @@ let invSel=new Set();   // 進銷存「異動紀錄」批量選取
 let invOpen=new Set();  // 進銷存「異動紀錄」展開的日期
 let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
+let attDueOpen=false;   // 課程點名「課程應收」是否展開
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
@@ -831,6 +832,62 @@ function viewOverview(){
 }
 
 /* ---------------- attendance ---------------- */
+/* 依點名把某學員某月的場次拆成 { label -> {count,amount} } */
+function studentDueBreakdown(ym,sid){
+  const dates=activeDates(ym);
+  const byLabel={};
+  let amount=0, sessions=0;
+  dates.forEach(dt=>{
+    cellEntries(ym,sid,dt).forEach(e=>{
+      const lbl=entryLabel(dt,e), p=priceOf(dt,e.slot);
+      const b=(byLabel[lbl]=byLabel[lbl]||{count:0,amount:0});
+      b.count++; b.amount+=p; amount+=p; sessions++;
+    });
+  });
+  return {byLabel,amount,sessions};
+}
+function enrolledStudents(ym,roster){
+  const ds=activeDates(ym);
+  return roster.filter(s=>ds.some(dt=>cellEntries(ym,s.id,dt).length));
+}
+/* 課程點名頁底部：本月依價目表算出的課程收費總額 + 各學員報名/應收統計 */
+function attDuePanel(ym,roster){
+  const enrolled=enrolledStudents(ym,roster);
+  const sessTot={}; let gSess=0,gAmt=0;
+  const rows=enrolled.map(s=>{
+    const b=studentDueBreakdown(ym,s.id);
+    gSess+=b.sessions; gAmt+=b.amount;
+    Object.entries(b.byLabel).forEach(([l,v])=>{ const t=(sessTot[l]=sessTot[l]||{count:0,amount:0}); t.count+=v.count; t.amount+=v.amount; });
+    const detail=Object.entries(b.byLabel).map(([l,v])=>`${esc(l)} ×${v.count}`).join("、");
+    return `<tr data-open-student="${s.id}" style="cursor:pointer">
+      <td><b>${esc(s.name)}</b></td><td class="hint">${detail}</td>
+      <td class="num">${b.sessions}</td><td class="num">${fmt(b.amount)}</td></tr>`;
+  }).join("");
+  const sessRows=Object.entries(sessTot).sort((a,b)=>b[1].amount-a[1].amount)
+    .map(([l,v])=>`<tr><td>${esc(l)}</td><td class="num">${v.count}</td><td class="num">${fmt(v.amount)}</td></tr>`).join("");
+  return `<div class="panel">
+    <div class="ph" data-toggle-attdue style="cursor:pointer">
+      <h3>${attDueOpen?"▾":"▸"} ${esc(ymLabel(ym))} 課程應收（依點名 × 價目表）</h3>
+      <span class="chip acc">${enrolled.length} 位報名 · ${gSess} 堂 · ${fmt(gAmt)}</span>
+      <div class="grow"></div>
+      <button class="btn sm" data-act="export-attdue">⬇ CSV</button>
+      <button class="btn sm" data-tab="dues">看已收/對帳 →</button></div>
+    ${attDueOpen?`<div class="pb flush">
+      <div class="tw"><table>
+        <thead><tr><th>場次（課程）</th><th class="num">全月總堂數</th><th class="num">應收金額</th></tr></thead>
+        <tbody>${sessRows||`<tr><td colspan="3" class="empty">本月尚無登記</td></tr>`}</tbody>
+        <tfoot class="tfoot"><tr><td>合計</td><td class="num">${gSess}</td><td class="num">${fmt(gAmt)}</td></tr></tfoot>
+      </table></div>
+      <div class="pb" style="padding:8px 15px 4px;font-size:11px;letter-spacing:.06em;color:var(--faint)">各學員報名情況</div>
+      <div class="tw"><table>
+        <thead><tr><th>學員</th><th>場次明細</th><th class="num">堂數</th><th class="num">應收</th></tr></thead>
+        <tbody>${rows||`<tr><td colspan="4" class="empty">本月尚無學員登記課程</td></tr>`}</tbody>
+        <tfoot class="tfoot"><tr><td>合計（${enrolled.length} 位）</td><td></td><td class="num">${gSess}</td><td class="num">${fmt(gAmt)}</td></tr></tfoot>
+      </table></div>
+    </div>`:""}
+  </div>`;
+}
+
 function viewAttend(){
   const ym=S.ui.ym;
   subAttend(ym);
@@ -875,6 +932,7 @@ function viewAttend(){
         <tbody>${body}</tbody>
       </table></div>
     </div>
+    ${attDuePanel(ym,roster)}
     <p class="hint">點格子勾選該學員當天上了哪些場次。想單日點名比較簡潔，切到「單日」。</p>`;
   }
 
@@ -918,6 +976,7 @@ function viewAttend(){
       <tbody>${rows}</tbody>
     </table></div>`:`<div class="empty">週${WD[wd]}沒有場次／價格，請到「設定 → 價目表」新增。</div>`}
   </div>
+  ${attDuePanel(ym,roster)}
   <p class="hint">點學員任一格開啟登錄。切「整月表」看跨日全貌。</p>`;
 }
 
@@ -2038,6 +2097,24 @@ function exportAttend(){
   rows.push([],foot);
   saveCSV(`點名表_${ym}.csv`,rows);
 }
+function exportAttDue(){
+  const ym=S.ui.ym, roster=monthRoster(ym);
+  const enrolled=enrolledStudents(ym,roster);
+  const rows=[[`${ymLabel(ym)} 課程應收（依點名 × 價目表）`],[]];
+  // 各場次
+  const sessTot={}; let gS=0,gA=0;
+  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id); gS+=b.sessions; gA+=b.amount;
+    Object.entries(b.byLabel).forEach(([l,v])=>{ const t=(sessTot[l]=sessTot[l]||{count:0,amount:0}); t.count+=v.count; t.amount+=v.amount; }); });
+  rows.push(["== 各場次 =="],["場次","全月總堂數","應收金額"]);
+  Object.entries(sessTot).sort((a,b)=>b[1].amount-a[1].amount).forEach(([l,v])=>rows.push([l,v.count,v.amount]));
+  rows.push(["合計",gS,gA],[]);
+  // 各學員
+  rows.push(["== 各學員報名情況 =="],["學員","場次明細","堂數","應收"]);
+  enrolled.forEach(s=>{ const b=studentDueBreakdown(ym,s.id);
+    rows.push([s.name,Object.entries(b.byLabel).map(([l,v])=>`${l}×${v.count}`).join("、"),b.sessions,b.amount]); });
+  rows.push([`合計（${enrolled.length} 位）`,"",gS,gA]);
+  saveCSV(`課程應收_${ym}.csv`,rows);
+}
 
 /* ===================================================== wiring */
 document.addEventListener("click",e=>{
@@ -2051,6 +2128,7 @@ document.addEventListener("click",e=>{
   if(dr){ const d=dr.dataset.invdate; invOpen.has(d)?invOpen.delete(d):invOpen.add(d); rerender(); return; }
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
+  if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
@@ -2070,6 +2148,7 @@ document.addEventListener("click",e=>{
   else if(d.act==="export-dues") exportDues(true);
   else if(d.act==="export-owe") exportDues(false);
   else if(d.act==="export-attend") exportAttend();
+  else if(d.act==="export-attdue") exportAttDue();
   else if(d.act==="export-stock") exportStock();
   else if(d.act==="clear-bank"){ const y=S.ui.bankYear;
     confirmModal(`清空 ${y} 年銀行明細？已對帳的收款仍保留「已核對」狀態（bankPaid），只失去差額提示。`,()=>{
