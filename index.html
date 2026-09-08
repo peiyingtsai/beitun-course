@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <title>北屯冰場 課程/裝備</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="app-build" content="2026-09-09b">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -753,10 +757,12 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
+const APP_BUILD="2026-09-09b";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
-    <span>學員 ${S.students.length} · 品項 ${S.invItems.length}</span>`;
+    <span>學員 ${S.students.length} · 品項 ${S.invItems.length}</span>
+    <span style="color:var(--faint)">版本 ${APP_BUILD}</span>`;
 }
 function rerender(){
   try{ renderNav(); renderTop(); renderRole(); renderStatus(); renderBody(); }
