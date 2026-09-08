@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09d">
+<meta name="app-build" content="2026-09-09e">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -126,6 +126,12 @@ tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--surface-2)}
 td.num,th.num{text-align:right;font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums}
 .tfoot td{font-weight:600;background:var(--surface-2);border-top:2px solid var(--line)}
+table.pnlmx th,table.pnlmx td{min-width:118px;vertical-align:top}
+table.pnlmx th:first-child,table.pnlmx td:first-child{min-width:110px;position:sticky;left:0;background:var(--surface);z-index:1}
+table.pnlmx thead th:first-child{background:var(--surface-2)}
+table.pnlmx .tfoot td:first-child,table.pnlmx tfoot td:first-child{background:var(--surface-2)}
+input.pnlamt{width:100%;text-align:right;font-family:"IBM Plex Mono"}
+input.pnlnote{width:100%;font-size:11px;padding:3px 6px;margin-top:3px}
 tbody tr.selrow{background:var(--accent-soft)}
 tbody tr.selrow:hover{background:var(--accent-soft)}
 tbody tr.daterow td{background:var(--surface-2)}
@@ -418,7 +424,6 @@ let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程點名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
-let pnlWeekOpen=new Set(); // 每月成本收益：展開的周（週一 date）
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function costM(ym){ if(!S.cost[ym]) S.cost[ym]={monthly:{},weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; if(!S.cost[ym].monthly) S.cost[ym].monthly={}; return S.cost[ym]; }
@@ -823,7 +828,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09d";
+const APP_BUILD="2026-09-09e";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1427,32 +1432,35 @@ function viewPnl(){
     </tr>`;
   }).join("");
 
-  // 各周（其餘類別按周輸入），可逐周展開
-  const weekBlocks=weeks.map((w,wi)=>{
-    const rev=weekRevenue(ym,w.dates);
-    const cost=weekCostTotal(ym,w.monday);
-    const items=weekCostItems(ym,w.monday);
-    const open=pnlWeekOpen.has(w.monday);
-    const a=w.dates[0].slice(5).replace("-","/"), b=w.dates[w.dates.length-1].slice(5).replace("-","/");
-    const form=open?`<div class="pb flush"><div class="tw"><table>
-        <thead><tr><th>成本類別</th><th class="num" style="width:130px">金額</th><th>備註</th></tr></thead>
-        <tbody>${COST_WEEKLY.map(c=>{
-          const it=items[c[0]]||{};
-          return `<tr><td>${c[1]}</td>
-            <td class="num"><input class="txt num" style="width:110px;text-align:right" data-cost="${w.monday}|${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0"></td>
-            <td><input class="txt" data-cost="${w.monday}|${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註"></td></tr>`;
-        }).join("")}</tbody>
-        <tfoot class="tfoot"><tr><td>本周成本（不含冰時）</td><td class="num">${fmt(cost)}</td><td></td></tr></tfoot>
-      </table></div></div>`:"";
-    return `<div class="panel">
-      <div class="ph" data-pnlweek="${w.monday}" style="cursor:pointer">
-        <h3>${open?"▾":"▸"} 第 ${wi+1} 周　${a}–${b}</h3>
-        <span class="hint">${w.dates.length} 堂（週${w.dates.map(d=>WD[wdOf(d)]).join("、")}）</span>
-        <div class="grow"></div>
-        <span class="chip mut">收 ${fmt(rev)}</span><span class="chip ${cost?'warn':'mut'}">周成本 ${fmt(cost)}</span></div>
-      ${form}
-    </div>`;
-  }).join("");
+  // 各周成本：橫向矩陣（列=類別，欄=周）
+  const weeklyCostSum=mCost-monthlyCostTotal(ym);
+  const catRowSum=k=>weeks.reduce((a,w)=>a+num((weekCostItems(ym,w.monday)[k]||{}).amount),0);
+  const weekMatrix=weeks.length?`<div class="panel">
+    <div class="ph"><h3>各周成本（冰時以外）</h3><div class="grow"></div>
+      <span class="hint">周多時可左右捲動</span></div>
+    <div class="pb flush"><div class="tw"><table class="pnlmx">
+      <thead><tr>
+        <th>成本類別</th>
+        ${weeks.map((w,wi)=>`<th class="num">第 ${wi+1} 周<div class="hint">${w.dates[0].slice(5).replace("-","/")}–${w.dates[w.dates.length-1].slice(5).replace("-","/")} · ${w.dates.length}堂</div></th>`).join("")}
+        <th class="num">合計</th>
+      </tr></thead>
+      <tbody>
+        ${COST_WEEKLY.map(c=>`<tr>
+          <td>${c[1]}</td>
+          ${weeks.map(w=>{ const it=weekCostItems(ym,w.monday)[c[0]]||{}; return `<td class="num">
+            <input class="txt num pnlamt" data-cost="${w.monday}|${c[0]}|amount" type="number" inputmode="numeric" value="${it.amount||''}" placeholder="0">
+            <input class="txt pnlnote" data-cost="${w.monday}|${c[0]}|note" value="${esc(it.note||'')}" placeholder="備註">
+          </td>`; }).join("")}
+          <td class="num"><b>${fmt(catRowSum(c[0]))}</b></td>
+        </tr>`).join("")}
+      </tbody>
+      <tfoot class="tfoot">
+        <tr><td>週成本合計</td>${weeks.map(w=>`<td class="num">${fmt(weekCostTotal(ym,w.monday))}</td>`).join("")}<td class="num">${fmt(weeklyCostSum)}</td></tr>
+        <tr><td>課程收入（原價）</td>${weeks.map(w=>`<td class="num">${fmt(weekRevenue(ym,w.dates))}</td>`).join("")}<td class="num">${fmt(mRev)}</td></tr>
+        <tr><td><b>週淨利（未計冰時）</b></td>${weeks.map(w=>{ const n=weekRevenue(ym,w.dates)-weekCostTotal(ym,w.monday); return `<td class="num"><b class="${n>=0?'okp':'badp'}">${fmt(n)}</b></td>`; }).join("")}<td class="num"><b class="${mRev-weeklyCostSum>=0?'okp':'badp'}">${fmt(mRev-weeklyCostSum)}</b></td></tr>
+      </tfoot>
+    </table></div></div>
+  </div>`:`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`;
 
   return `
   <div class="cards">
@@ -1473,8 +1481,7 @@ function viewPnl(){
     </table></div></div>
   </div>
 
-  <h3 style="margin:18px 0 8px;font-size:13px;letter-spacing:.04em;color:var(--muted)">各周成本（點標題展開輸入）</h3>
-  ${weekBlocks||`<div class="panel"><div class="empty">本月沒有上課日。到「課程點名 → 🗓 上課日」設定。</div></div>`}
+  ${weekMatrix}
 
   ${weeks.length?`<div class="panel">
     <div class="ph"><h3>${esc(ymLabel(ym))} 損益彙總</h3></div>
@@ -2402,7 +2409,6 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
-  const pw=e.target.closest("[data-pnlweek]"); if(pw && !e.target.closest("button")){ const k=pw.dataset.pnlweek; pnlWeekOpen.has(k)?pnlWeekOpen.delete(k):pnlWeekOpen.add(k); rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
