@@ -330,6 +330,15 @@ function shiftYM(ym,delta){
   while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
   return `${y}-${String(m).padStart(2,"0")}`;
 }
+/* 月份下拉選單用：目前月往前 3、往後 12，加上已有資料的月份 */
+function ymOptions(){
+  const set=new Set();
+  const base=curYM();
+  for(let i=-3;i<=12;i++) set.add(shiftYM(base,i));
+  Object.keys(S.attend||{}).forEach(k=>{ if(/^\d{4}-\d{2}$/.test(k)) set.add(k); });
+  if(S.ui.ym) set.add(S.ui.ym);
+  return [...set].sort();
+}
 function clone(x){ try{ return structuredClone(x); }catch(e){ return JSON.parse(JSON.stringify(x)); } }
 function confirmModal(msg,onOk,okLabel="確定",danger=true){
   const s=document.createElement("div"); s.className="scrim";
@@ -714,7 +723,11 @@ function renderTop(){
   let h=`<h2>${titleMap[S.ui.tab]||""}</h2><div class="grow"></div>`;
   if(["overview","attend","dues"].includes(S.ui.tab)){
     h+=`<div class="mpick"><label>月份</label><div class="mo">
-      <button data-ym="-1">‹</button><span class="lbl">${esc(ymLabel(S.ui.ym))}</span><button data-ym="1">›</button></div></div>`;
+      <button data-ym="-1" title="上個月">‹</button>
+      <select class="pick lbl" id="ymPick" style="border:0;background:none;text-align:center">
+        ${ymOptions().map(o=>`<option value="${o}" ${o===S.ui.ym?"selected":""}>${esc(ymLabel(o))}</option>`).join("")}
+      </select>
+      <button data-ym="1" title="下個月">›</button></div></div>`;
   }
   if((S.ui.tab==="bankCourse"||S.ui.tab==="bankInv") && isMgr()){
     const yrs=INV_YEARS();
@@ -936,14 +949,20 @@ function viewAttend(){
     <button class="btn" data-act="import-students">⬆ 匯入學員</button></div></div></div>`;
 
   const view=S.ui.attView||"day";
+  const customDates=!!(attM(ym).dates&&attM(ym).dates.length);
   const head=`
     <div class="ph"><h3>${esc(ymLabel(ym))}　點名表</h3><div class="grow"></div>
       <div class="seg">
         <button data-attview="day" class="${view==='day'?'on':''}">單日</button>
         <button data-attview="grid" class="${view==='grid'?'on':''}">整月表</button>
       </div>
+      <button class="btn sm" data-act="add-student">＋ 學員</button>
       <button class="btn sm" data-act="edit-dates">🗓 上課日</button>
-      <button class="btn sm" data-act="export-attend">⬇ CSV</button></div>`;
+      <button class="btn sm" data-act="export-attend">⬇ CSV</button></div>
+    <div class="pb" style="padding:8px 15px 0;font-size:12px;color:var(--muted)">
+      ${dates.length} 個上課日${customDates?"（自訂）":"（預設：全部週一二三，可按「🗓 上課日」調整）"}
+      · ${roster.length} 位在學學員　—　切換上方「月份」看其他月；學員報名後直接在下方勾選他上的場次即可
+    </div>`;
 
   if(!dates.length){
     return `<div class="panel">${head}<div class="empty">本月沒有上課日。<button class="btn sm" data-act="edit-dates">產生上課日</button></div></div>`;
@@ -2324,6 +2343,7 @@ document.addEventListener("click",e=>{
 document.addEventListener("change",e=>{
   if(e.target.id==="bankYear"){ S.ui.bankYear=+e.target.value; saveLS(); rerender(); }
   if(e.target.id==="invYear"){ S.ui.invYear=+e.target.value; invSel.clear(); invOpen.clear(); saveLS(); rerender(); }
+  if(e.target.id==="ymPick"){ S.ui.ym=e.target.value; subAttend(S.ui.ym); saveLS(); rerender(); }
   const ms=e.target.closest("[data-msel]");
   if(ms){ const id=ms.dataset.msel; e.target.checked?invSel.add(id):invSel.delete(id); rerender(); }
   if(e.target.id==="msel-all-in"||e.target.id==="msel-all-sale"){
