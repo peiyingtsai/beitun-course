@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09l">
+<meta name="app-build" content="2026-09-09m">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -382,6 +382,7 @@ function scrim(inner,wide){
   document.body.appendChild(s); return s;
 }
 function closeScrim(s){ s.remove(); }
+function closeAllScrims(){ document.querySelectorAll(".scrim").forEach(x=>x.remove()); }
 
 /* ===================================================== state */
 let DB=null, dbReady=false;
@@ -857,7 +858,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09l";
+const APP_BUILD="2026-09-09m";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1385,8 +1386,11 @@ function viewDues(){
     else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>待銀行核對</span>`;
     else chip=`<span class="chip ok"><span class="dot"></span>已收齊</span>`;
     const aj=studentAdj(ym,s.id);
+    const ajCell = isMgr()
+      ? `<div class="hint"><button class="linkbtn" data-adj="${ym}:${s.id}">${aj?`特別折扣 -${fmtP(aj.amount)}${aj.note?"（"+esc(aj.note)+"）":""}　✎`:"＋ 特別折扣"}</button></div>`
+      : (aj?`<div class="hint okp">特別折扣 -${fmtP(aj.amount)}${aj.note?"（"+esc(aj.note)+"）":""}</div>`:"");
     return `<tr data-open-student="${s.id}" style="cursor:pointer">
-      <td><b>${esc(s.name)}</b>${aj?`<div class="hint okp">特別折扣 -${fmtP(aj.amount)}${aj.note?"（"+esc(aj.note)+"）":""}</div>`:""}</td>
+      <td><b>${esc(s.name)}</b>${ajCell}</td>
       <td class="num">${d.sessions}</td>
       <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)}・折 -${fmtP(d.discount)}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td>
@@ -1423,8 +1427,12 @@ function studentModal(sid){
   ])].sort().reverse();
   const monthRows=yms.map(ym=>{
     const d=studentDue(ym,sid), p=studentPaid(ym,sid), aj=studentAdj(ym,sid);
+    const ajCell = isMgr()
+      ? `<button class="linkbtn" data-adj="${ym}:${sid}">${aj?`-${fmtP(aj.amount)} ✎`:"＋"}</button>`
+      : (aj?`-${fmtP(aj.amount)}`:"—");
     return `<tr><td class="num">${ym}</td><td class="num">${d.sessions}</td>
       <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)} 折 -${fmtP(d.discount)}${aj?"（含特別 -"+fmtP(aj.amount)+"）":""}</div>`:""}</td>
+      <td class="num">${ajCell}</td>
       <td class="num">${fmt(p.logged)}</td><td class="num ${d.amount-p.logged>TOL?'badp':''}">${fmt(d.amount-p.logged)}</td></tr>`;
   }).join("");
   const info=[
@@ -1437,10 +1445,10 @@ function studentModal(sid){
    <div class="mb">
      ${info.length?`<div class="tw" style="margin-bottom:12px"><table><tbody>${info.map(x=>`<tr><th style="width:96px">${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join("")}</tbody></table></div>`:""}
      ${s0.note?`<p class="hint">📝 ${esc(s0.note)}</p>`:""}
-     <h4 style="font-size:13px;margin-bottom:6px">各月 應收 / 已收</h4>
+     <h4 style="font-size:13px;margin-bottom:6px">各月 應收 / 已收${isMgr()?`　<span class="hint" style="font-weight:400">（點「特別折扣」欄的 ＋／✎ 可編輯）</span>`:""}</h4>
      <div class="tw"><table>
-       <thead><tr><th class="num">月</th><th class="num">堂</th><th class="num">應收</th><th class="num">已收</th><th class="num">未收</th></tr></thead>
-       <tbody>${monthRows||`<tr><td colspan="5" class="hint">無資料</td></tr>`}</tbody></table></div>
+       <thead><tr><th class="num">月</th><th class="num">堂</th><th class="num">應收</th><th class="num">特別折扣</th><th class="num">已收</th><th class="num">未收</th></tr></thead>
+       <tbody>${monthRows||`<tr><td colspan="6" class="hint">無資料</td></tr>`}</tbody></table></div>
      <h4 style="font-size:13px;margin:14px 0 6px">繳費紀錄</h4>
      <div class="tw"><table>
        <thead><tr><th>日期</th><th>方式</th><th class="num">分配金額</th><th>對帳</th></tr></thead>
@@ -1476,7 +1484,7 @@ function adjustModal(arg){
     if(!s.adj) s.adj={};
     if(num(amt)>0) s.adj[ym]={amount:num(amt),note:(note||"").trim()};
     else delete s.adj[ym];
-    closeScrim(m); pushStudents(); toast("已更新特別折扣","ok");
+    closeAllScrims(); pushStudents(); toast("已更新特別折扣","ok");
   };
   $("#aj-save",m).onclick=()=>commit($("#aj-amt",m).value,$("#aj-note",m).value);
   const cl=$("#aj-clear",m); if(cl) cl.onclick=()=>commit(0,"");
