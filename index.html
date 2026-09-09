@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09m">
+<meta name="app-build" content="2026-09-09n">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -350,6 +350,8 @@ function toast(msg,kind){
 function today(){ return new Date().toISOString().slice(0,10); }
 function curYM(){ return new Date().toISOString().slice(0,7); }
 function ymLabel(ym){ const [y,m]=ym.split("-"); return `${y} 年 ${+m} 月`; }
+function fmtTime(iso){ const d=new Date(iso); if(isNaN(d)) return String(iso||""); const p=n=>String(n).padStart(2,"0");
+  return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 function shiftYM(ym,delta){
   let [y,m]=ym.split("-").map(Number); m+=delta;
   while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
@@ -423,7 +425,7 @@ let S={
   settings:defaultSettings(),
   students:[],            // {id,name,note,active}
   adults:[],             // 成人之夜球員 {id,name,phone,birthday,last5,note,active}
-  attend:{},              // ym -> {dates:[], cells:{ "sid|date":[{slot,classId}] }}
+  attend:{},              // ym -> {dates:[], cells:{ "sid|date":[{slot,classId}] }, hist:[{at,by,cells,dates}] }
   pays:{},                // year -> [ {id,date,amount,last5,cash,payer,note,allocs:[{sid,ym,amount,kind,note}],matchTxnId,matchDate,bankPaid} ]
   bank:{},                // year -> [ txn ]
   invItems:[],            // {id,name,unit,note}
@@ -442,6 +444,8 @@ let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
+const attPrev={};        // ym -> 上次同步後的 {cells,dates}（給「復原」用的基準）
+const ATT_HIST_MAX=15;   // 報名表最多保留幾個版本
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function costM(ym){ if(!S.cost[ym]) S.cost[ym]={monthly:{},weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; if(!S.cost[ym].monthly) S.cost[ym].monthly={}; return S.cost[ym]; }
@@ -515,6 +519,8 @@ function subAttend(ym){
     S.attend[ym]= sn.exists ? clone(sn.data()) : {dates:[],cells:{}};
     if(!S.attend[ym].dates) S.attend[ym].dates=[];
     if(!S.attend[ym].cells) S.attend[ym].cells={};
+    if(!Array.isArray(S.attend[ym].hist)) S.attend[ym].hist=[];
+    attPrev[ym]={cells:clone(S.attend[ym].cells),dates:clone(S.attend[ym].dates)};
     saveLS(); rerender();
   },e=>console.warn("attend",e));
 }
@@ -536,7 +542,51 @@ async function pushSettings(){ saveLS(); rerender(); if(DB) try{ await DB.doc("c
 async function pushStudents(){ saveLS(); rerender(); if(DB) try{ await DB.doc("roster/students").set({students:S.students}); }catch(e){ toast("儲存失敗（學員）","bad"); } }
 async function pushAdults(){ saveLS(); rerender(); if(DB) try{ await DB.doc("roster/adults").set({adults:S.adults}); }catch(e){ toast("儲存失敗（成人之夜球員）","bad"); } }
 async function pushItems(){ saveLS(); rerender(); if(DB) try{ await DB.doc("inv/items").set({items:S.invItems}); }catch(e){ toast("儲存失敗（品項）","bad"); } }
-async function pushAttend(ym){ saveLS(); rerender(); if(DB) try{ await DB.doc(`attend/${ym}`).set(clone(attM(ym))); }catch(e){ toast("儲存失敗（報名）","bad"); } }
+/* 記錄「這次改動之前」的狀態到 hist（供復原），再寫回雲端 */
+function attSnapKey(o){ return JSON.stringify(o.cells||{})+"|"+JSON.stringify(o.dates||[]); }
+async function pushAttend(ym){
+  const a=attM(ym);
+  if(!Array.isArray(a.hist)) a.hist=[];
+  const before=attPrev[ym];
+  if(before && attSnapKey(before)!==attSnapKey(a)){
+    a.hist.unshift({ at:new Date().toISOString(), by:OP||"", cells:clone(before.cells||{}), dates:clone(before.dates||[]) });
+    a.hist=a.hist.slice(0,ATT_HIST_MAX);
+  }
+  attPrev[ym]={cells:clone(a.cells),dates:clone(a.dates||[])};
+  saveLS(); rerender();
+  if(DB) try{ await DB.doc(`attend/${ym}`).set(clone(a)); }catch(e){ toast("儲存失敗（報名）","bad"); }
+}
+/* 把某月報名還原到 hist[idx] 的版本（還原動作本身也會被記錄，可再還原回來）*/
+function restoreAttend(ym,idx){
+  const a=attM(ym); const h=(a.hist||[])[idx]; if(!h) return;
+  confirmModal(`把「${ymLabel(ym)} 報名」還原到 ${fmtTime(h.at)}${h.by?"（"+h.by+"）":""} 的版本？\n目前的內容會先存一份版本紀錄，之後也能再還原回來。`,()=>{
+    a.cells=clone(h.cells||{}); a.dates=clone(h.dates||[]);
+    closeAllScrims(); pushAttend(ym); toast("已還原","ok");
+  });
+}
+function attHistModal(ym){
+  const a=attM(ym); const hist=a.hist||[];
+  const nCells=o=>Object.values(o.cells||{}).reduce((n,arr)=>n+(arr?arr.length:0),0);
+  const s=scrim(`
+   <div class="mh"><h3>${esc(ymLabel(ym))} 報名 — 版本 / 復原</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <p class="hint">每次有人改動「報名表 / 上課日」並儲存，系統會自動把<b>改動前</b>的狀態存成一個版本（最多 ${ATT_HIST_MAX} 個）。按「還原到此」即可回到那個時間點的內容。</p>
+     <div class="tw"><table>
+       <thead><tr><th>時間</th><th>操作人</th><th class="num">當時勾選數</th><th></th></tr></thead>
+       <tbody>
+         <tr><td><b>現在</b></td><td class="hint">—</td><td class="num">${nCells(a)}</td><td class="hint">目前內容</td></tr>
+         ${hist.map((h,i)=>`<tr>
+           <td>${esc(fmtTime(h.at))}</td>
+           <td>${h.by?esc(h.by):'<span class="hint">未具名</span>'}</td>
+           <td class="num">${nCells(h)}</td>
+           <td class="right"><button class="btn sm" data-restore-att="${i}">還原到此</button></td>
+         </tr>`).join("")||`<tr><td colspan="4" class="empty">還沒有任何版本紀錄</td></tr>`}
+       </tbody>
+     </table></div>
+   </div>
+   <div class="mf"><button class="btn primary" data-x>關閉</button></div>`,"wide");
+  s.addEventListener("click",e=>{ const b=e.target.closest("[data-restore-att]"); if(b) restoreAttend(ym,+b.dataset.restoreAtt); });
+}
 async function pushPays(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`pay/${y}`).set({rows:payY(y)}); }catch(e){ toast("儲存失敗（收款）","bad"); } }
 async function pushBank(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`bank/${y}`).set({txns:bankY(y)}); }catch(e){ toast("儲存失敗（銀行）","bad"); } }
 async function pushMoves(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`inv/moves-${y}`).set({moves:moveY(y)}); }catch(e){ toast("儲存失敗（進銷存）","bad"); } }
@@ -858,7 +908,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09m";
+const APP_BUILD="2026-09-09n";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1108,6 +1158,7 @@ function viewAttend(){
       </div>
       <button class="btn sm" data-act="add-student">＋ 學員</button>
       <button class="btn sm" data-act="edit-dates">🗓 上課日</button>
+      <button class="btn sm" data-act="att-hist">↩ 復原（${(attM(ym).hist||[]).length}）</button>
       <button class="btn sm" data-act="export-attend">⬇ CSV</button></div>
     <div class="pb" style="padding:8px 15px 0;font-size:12px;color:var(--muted)">
       ${dates.length} 個上課日${customDates?"（自訂）":"（預設：全部週一二三，可按「🗓 上課日」調整）"}
@@ -1191,6 +1242,7 @@ function viewAttend(){
 
 function cellModal(sid,date){
   const ym=S.ui.ym;
+  if(!attPrev[ym]) attPrev[ym]={cells:clone(attM(ym).cells),dates:clone(attM(ym).dates||[])};
   const ss=sessionsFor(date);
   const wd=wdOf(date);
   if(!ss.length){ toast(`週${WD[wd]}沒有設定場次／價格，請先到「設定 → 價目表」新增`,"bad"); return; }
@@ -1219,6 +1271,7 @@ function cellModal(sid,date){
 function editDatesModal(){
   const ym=S.ui.ym;
   const a=attM(ym);
+  if(!attPrev[ym]) attPrev[ym]={cells:clone(a.cells),dates:clone(a.dates||[])};
   const cur=(a.dates&&a.dates.length)?a.dates.slice():monthDates(ym);
   const s=scrim(`
    <div class="mh"><h3>${esc(ymLabel(ym))} 上課日</h3><button class="x" data-x>×</button></div>
@@ -2571,6 +2624,7 @@ document.addEventListener("click",e=>{
   else if(d.act==="add-adult") adultEditModal();
   else if(d.act==="import-adults") importModal("adults");
   else if(d.act==="edit-dates") editDatesModal();
+  else if(d.act==="att-hist") attHistModal(S.ui.ym);
   else if(d.act==="add-pay") payModal();
   else if(d.act==="add-item") itemModal();
   else if(d.act==="add-move-transfer") moveModal("transfer");
