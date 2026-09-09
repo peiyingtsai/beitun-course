@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09k">
+<meta name="app-build" content="2026-09-09l">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -857,7 +857,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09k";
+const APP_BUILD="2026-09-09l";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1682,7 +1682,7 @@ function assignModal(arg){
     let a=0; sel.forEach(id=>{ const r=open.find(x=>x.id===id); if(r) a+=r.amount; });
     const target=sd.target;
     const el=$("#as-sum",s);
-    el.textContent=`勾選合計 ${fmtP(a)} ／ 需湊 ${fmtP(target)}${sd.otherSum?`（入帳 ${fmtP(t.deposit)} 扣掉另一類 ${fmtP(sd.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓":"⚠ 差 "+fmtP(a-target)}`;
+    el.textContent=`勾選合計 ${fmtP(a)} ／ 此筆入帳 ${fmtP(target)}${sd.otherSum?`（${fmtP(t.deposit)} 扣掉另一類 ${fmtP(sd.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓ 相符":"⚠ 相差 "+fmtP(a-target)}`;
     el.style.color=Math.abs(a-target)<=TOL?"var(--ok)":"var(--warn)";
   }
   s.addEventListener("change",sum); sum();
@@ -1733,6 +1733,7 @@ function bankPayModal(txnId){
    <div class="mh"><h3>依後五碼建立課程收款 ${fmt(t.deposit)}（${esc(t.last5||"—")}）</h3><button class="x" data-x>×</button></div>
    <div class="mb">
      <p class="hint">${esc(date)} · ${esc(t.summary||"")}　—　後五碼對到：<b>${cand.map(x=>esc(x.name)).join("、")||"無"}</b></p>
+     <p class="hint">這是你匯入的銀行明細裡「還沒對帳」的一筆入帳，金額 <b>${fmt(t.deposit)}</b>。把下方各學員的金額加總湊到 <b>${fmtP(target)}</b>，按「建立並對帳」就會同時建收款＋銷掉這筆入帳；金額不相符仍可建立，但會標記為「差額」。</p>
      <div id="bp-list">${cand.map(c=>rowH(c.id,true)).join("")}</div>
      <div style="display:flex;gap:8px;align-items:center;margin:8px 0">
        <select class="pick" id="bp-add"><option value="">＋ 加入其他學員…</option>${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join("")}</select>
@@ -1754,7 +1755,7 @@ function bankPayModal(txnId){
     let a=0;
     $$("#bp-list [data-brow]",s).forEach(r=>{ if($("[data-bf='on']",r).checked) a+=num($("[data-bf='amount']",r).value); });
     const el=$("#bp-sum",s);
-    el.textContent=`合計 ${fmtP(a)} ／ 需湊 ${fmtP(target)}${ti.pay.otherSum?`（入帳 ${fmtP(t.deposit)} 扣裝備 ${fmtP(ti.pay.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓":"⚠ 差 "+fmtP(a-target)}`;
+    el.textContent=`各學員金額加總 ${fmtP(a)} ／ 此筆入帳 ${fmtP(target)}${ti.pay.otherSum?`（${fmtP(t.deposit)} 扣裝備 ${fmtP(ti.pay.otherSum)}）`:""}　${Math.abs(a-target)<=TOL?"✓ 相符":"⚠ 相差 "+fmtP(a-target)}`;
     el.style.color=Math.abs(a-target)<=TOL?"var(--ok)":"var(--warn)";
   }
   $$("#bp-list [data-brow]",s).forEach(fillAmt); sum();
