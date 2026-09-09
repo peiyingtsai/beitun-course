@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09j">
+<meta name="app-build" content="2026-09-09k">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -218,6 +218,21 @@ td.dcell.has{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 .linkbtn{background:none;border:0;color:var(--accent);font-weight:600;padding:0;font-size:inherit;text-decoration:underline;text-underline-offset:2px}
 
+/* 展開式清單（學員資料 / 成人之夜球員）*/
+.exlist{display:flex;flex-direction:column}
+.exrow{border-bottom:1px solid var(--line-2)}
+.exrow:last-child{border-bottom:0}
+.exrow.open{background:var(--surface-2,rgba(127,127,127,.05))}
+.exhead{display:flex;gap:9px;align-items:center;padding:11px 15px;cursor:pointer;flex-wrap:wrap}
+.exhead:hover{background:rgba(127,127,127,.06)}
+.exhead .extoggle{color:var(--faint);font-size:12px;width:12px;flex:none}
+.exhead .grow{flex:1}
+.exhead .hint{font-weight:400}
+.exbody{padding:2px 15px 14px 36px}
+.exbody table{width:100%}
+.exbody th{text-align:left;color:var(--muted);font-weight:600;vertical-align:top;padding:3px 10px 3px 0;white-space:nowrap}
+.exbody td{padding:3px 0}
+
 .statusbar{font-size:11.5px;color:var(--faint);padding:4px 22px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .statusbar .live{display:inline-flex;gap:5px;align-items:center}
 .statusbar .live .d{width:7px;height:7px;border-radius:50%;background:var(--faint)}
@@ -406,13 +421,14 @@ const COST_CATS=[...COST_MONTHLY,...COST_WEEKLY];
 let S={
   settings:defaultSettings(),
   students:[],            // {id,name,note,active}
+  adults:[],             // 成人之夜球員 {id,name,phone,birthday,last5,note,active}
   attend:{},              // ym -> {dates:[], cells:{ "sid|date":[{slot,classId}] }}
   pays:{},                // year -> [ {id,date,amount,last5,cash,payer,note,allocs:[{sid,ym,amount,kind,note}],matchTxnId,matchDate,bankPaid} ]
   bank:{},                // year -> [ txn ]
   invItems:[],            // {id,name,unit,note}
   invMoves:{},            // year -> [ {id,type:in|transfer|sale,date,itemId,qty,price,last5,cash,buyer,note,matchTxnId,bankPaid} ]
   cost:{},                // ym -> { monthly: { ice:{amount,note} }, weeks: { "<週一date>": { cat:{amount,note} } } }
-  ui:{ tab:"overview", ym:curYM(), bankYear:new Date().getFullYear(), invYear:new Date().getFullYear() }
+  ui:{ tab:"overview", ym:curYM(), bankYear:new Date().getFullYear(), invYear:new Date().getFullYear(), rosterTab:"kids" }
 };
 let ROLE = (()=>{ try{ return localStorage.getItem(ROLE_LS)||"staff"; }catch(e){ return "staff"; } })();
 const isMgr=()=>ROLE==="manager";
@@ -424,6 +440,7 @@ let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
+let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
 
 function attM(ym){ if(!S.attend[ym]) S.attend[ym]={dates:[],cells:{}}; return S.attend[ym]; }
 function costM(ym){ if(!S.cost[ym]) S.cost[ym]={monthly:{},weeks:{}}; if(!S.cost[ym].weeks) S.cost[ym].weeks={}; if(!S.cost[ym].monthly) S.cost[ym].monthly={}; return S.cost[ym]; }
@@ -441,7 +458,7 @@ function loadLS(){
     const j=JSON.parse(localStorage.getItem(LS)||"null");
     if(j){
       S.settings=Object.assign(defaultSettings(),j.settings||{});
-      S.students=j.students||[]; S.attend=j.attend||{};
+      S.students=j.students||[]; S.adults=j.adults||[]; S.attend=j.attend||{};
       S.pays=j.pays||{}; S.bank=j.bank||{};
       S.invItems=j.invItems||[]; S.invMoves=j.invMoves||{};
       S.cost=j.cost||{};
@@ -452,7 +469,7 @@ function loadLS(){
 }
 function saveLS(){
   try{ localStorage.setItem(LS,JSON.stringify({
-    settings:S.settings,students:S.students,attend:S.attend,pays:S.pays,bank:S.bank,
+    settings:S.settings,students:S.students,adults:S.adults,attend:S.attend,pays:S.pays,bank:S.bank,
     invItems:S.invItems,invMoves:S.invMoves,cost:S.cost,ui:S.ui
   })); }catch(e){}
 }
@@ -476,6 +493,9 @@ async function initDB(){
   DB.doc("roster/students").onSnapshot(sn=>{
     if(sn.exists){ S.students=clone(sn.data().students)||[]; saveLS(); rerender(); }
   },e=>console.warn("students",e));
+  DB.doc("roster/adults").onSnapshot(sn=>{
+    if(sn.exists){ S.adults=clone(sn.data().adults)||[]; saveLS(); rerender(); }
+  },e=>console.warn("adults",e));
   DB.doc("inv/items").onSnapshot(sn=>{
     if(sn.exists){ S.invItems=clone(sn.data().items)||[]; saveLS(); rerender(); }
   },e=>console.warn("items",e));
@@ -513,6 +533,7 @@ function normMoves(){ Object.values(S.invMoves).flat().forEach(m=>{ if(m&&m.last
 
 async function pushSettings(){ saveLS(); rerender(); if(DB) try{ await DB.doc("config/settings").set(clone(S.settings)); }catch(e){ toast("儲存失敗（設定）","bad"); } }
 async function pushStudents(){ saveLS(); rerender(); if(DB) try{ await DB.doc("roster/students").set({students:S.students}); }catch(e){ toast("儲存失敗（學員）","bad"); } }
+async function pushAdults(){ saveLS(); rerender(); if(DB) try{ await DB.doc("roster/adults").set({adults:S.adults}); }catch(e){ toast("儲存失敗（成人之夜球員）","bad"); } }
 async function pushItems(){ saveLS(); rerender(); if(DB) try{ await DB.doc("inv/items").set({items:S.invItems}); }catch(e){ toast("儲存失敗（品項）","bad"); } }
 async function pushAttend(ym){ saveLS(); rerender(); if(DB) try{ await DB.doc(`attend/${ym}`).set(clone(attM(ym))); }catch(e){ toast("儲存失敗（報名）","bad"); } }
 async function pushPays(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`pay/${y}`).set({rows:payY(y)}); }catch(e){ toast("儲存失敗（收款）","bad"); } }
@@ -836,7 +857,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09j";
+const APP_BUILD="2026-09-09k";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -879,30 +900,72 @@ function ageFrom(bd){
   return a>=0&&a<120 ? a+" 歲" : "";
 }
 function viewStudents(){
-  const list=S.students.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
-  const rows=list.map(s=>`
-    <tr data-open-student="${s.id}" style="cursor:pointer">
-      <td><b>${esc(s.name)}</b>${s.active===false?' <span class="chip mut">停用</span>':''}</td>
-      <td>${esc(s.parent||"")}</td>
-      <td class="nowrap">${esc(s.parentPhone||s.mobile||"")}</td>
-      <td class="nowrap">${esc(s.birthday||"")}${s.birthday?` <span class="hint">${ageFrom(s.birthday)}</span>`:""}</td>
-      <td class="mono">${esc(s.last5||"")}</td>
-      <td class="hint">${esc(s.email||"")}</td>
-      <td class="right nowrap"><button class="btn sm ghost" data-edit-student="${s.id}">編輯</button>
-        <button class="btn sm danger" data-del-student="${s.id}">刪</button></td>
-    </tr>`).join("");
+  const rt=S.ui.rosterTab==="adult"?"adult":"kids";
   return `
   <div class="panel">
-    <div class="ph"><h3>學員資料入口 <span class="hint">（${list.length} 位）</span></h3><div class="grow"></div>
-      <button class="btn sm" data-act="import-students">⬆ 匯入 / 更新</button>
-      <button class="btn primary sm" data-act="add-student">＋ 新增學員</button></div>
-    ${!list.length?`<div class="empty"><div class="big">☷</div>還沒有學員。可「＋ 新增學員」逐筆建，或「⬆ 匯入」貼上 Excel。</div>`:`
-    <div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>學員</th><th>家長</th><th>電話</th><th>生日</th><th>後五碼</th><th>Email</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div></div>`}
+    <div class="ph"><div class="seg">
+      <button data-roster="kids" class="${rt==='kids'?'on':''}">課程學員（${S.students.length}）</button>
+      <button data-roster="adult" class="${rt==='adult'?'on':''}">成人之夜球員（${S.adults.length}）</button>
+    </div><div class="grow"></div>
+      ${rt==='kids'
+        ? `<button class="btn sm" data-act="import-students">⬆ 匯入 / 更新</button>
+           <button class="btn primary sm" data-act="add-student">＋ 新增學員</button>`
+        : `<button class="btn sm" data-act="import-adults">⬆ 匯入 / 更新</button>
+           <button class="btn primary sm" data-act="add-adult">＋ 新增球員</button>`}
+    </div>
+    ${rt==='kids'?kidsRoster():adultRoster()}
   </div>
-  <p class="hint">點任一列看完整資料與繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。</p>`;
+  <p class="hint">${rt==='kids'
+    ? '點任一列展開看完整資料，「明細」看繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。'
+    : '成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
+}
+function kidsRoster(){
+  const list=S.students.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  if(!list.length) return `<div class="empty"><div class="big">☷</div>還沒有學員。可「＋ 新增學員」逐筆建，或「⬆ 匯入」貼上 Excel。</div>`;
+  return `<div class="pb flush"><div class="exlist">${list.map(s=>{
+    const open=stuOpen.has(s.id);
+    const sub=[s.parentPhone||s.mobile,s.birthday?ageFrom(s.birthday):""].filter(Boolean).join(" · ");
+    const info=[["家長",s.parent],["家長電話",s.parentPhone],["學員手機",s.mobile],
+      ["生日",s.birthday?`${s.birthday}　${ageFrom(s.birthday)}`:""],["Email",s.email],
+      ["匯款後五碼",s.last5],["備註",s.note]].filter(x=>x[1]);
+    return `<div class="exrow ${open?'open':''}">
+      <div class="exhead" data-toggle-stu="${s.id}">
+        <span class="extoggle">${open?"▾":"▸"}</span>
+        <b>${esc(s.name)}</b>${s.active===false?' <span class="chip mut">停用</span>':''}
+        ${sub?`<span class="hint">${esc(sub)}</span>`:""}
+        <span class="grow"></span>
+        <button class="btn sm ghost" data-open-student="${s.id}">明細</button>
+        <button class="btn sm ghost" data-edit-student="${s.id}">編輯</button>
+        <button class="btn sm danger" data-del-student="${s.id}">刪</button>
+      </div>
+      ${open?`<div class="exbody"><table><tbody>${
+        info.length?info.map(x=>`<tr><th>${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join(""):`<tr><td class="hint">沒有其他資料，可按「編輯」補上</td></tr>`
+      }</tbody></table></div>`:""}
+    </div>`;
+  }).join("")}</div></div>`;
+}
+function adultRoster(){
+  const list=S.adults.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  if(!list.length) return `<div class="empty"><div class="big">☷</div>還沒有成人之夜球員。可「＋ 新增球員」逐筆建，或「⬆ 匯入」貼上名單。</div>`;
+  return `<div class="pb flush"><div class="exlist">${list.map(a=>{
+    const open=stuOpen.has(a.id);
+    const sub=[a.phone,a.birthday?ageFrom(a.birthday):""].filter(Boolean).join(" · ");
+    const info=[["電話",a.phone],["生日",a.birthday?`${a.birthday}　${ageFrom(a.birthday)}`:""],
+      ["匯款後五碼",a.last5],["備註",a.note]].filter(x=>x[1]);
+    return `<div class="exrow ${open?'open':''}">
+      <div class="exhead" data-toggle-stu="${a.id}">
+        <span class="extoggle">${open?"▾":"▸"}</span>
+        <b>${esc(a.name)}</b>${a.active===false?' <span class="chip mut">停用</span>':''}
+        ${sub?`<span class="hint">${esc(sub)}</span>`:""}
+        <span class="grow"></span>
+        <button class="btn sm ghost" data-edit-adult="${a.id}">編輯</button>
+        <button class="btn sm danger" data-del-adult="${a.id}">刪</button>
+      </div>
+      ${open?`<div class="exbody"><table><tbody>${
+        info.length?info.map(x=>`<tr><th>${esc(x[0])}</th><td>${esc(x[1])}</td></tr>`).join(""):`<tr><td class="hint">沒有其他資料，可按「編輯」補上</td></tr>`
+      }</tbody></table></div>`:""}
+    </div>`;
+  }).join("")}</div></div>`;
 }
 
 /* ---------------- overview ---------------- */
@@ -2080,6 +2143,40 @@ function studentEditModal(id){
     S.students=S.students.filter(x=>x.id!==st.id); closeScrim(s); pushStudents(); toast("已刪除","ok");
   });
 }
+function adultEditModal(id){
+  let a=id?S.adults.find(x=>x.id===id):null;
+  const editing=!!a; if(!a) a={id:uid(),name:"",phone:"",birthday:"",last5:"",note:"",active:true};
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯成人之夜球員":"新增成人之夜球員"}</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="grid2">
+       <div class="field"><label>姓名</label><input class="txt" id="ad-name" value="${esc(a.name)}"></div>
+       <div class="field"><label>生日</label><input class="txt" id="ad-birthday" type="date" value="${esc(a.birthday||"")}"></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>電話</label><input class="txt" id="ad-phone" value="${esc(a.phone||"")}" inputmode="tel"></div>
+       <div class="field"><label>匯款帳號後五碼</label><input class="txt" id="ad-last5" value="${esc(a.last5||"")}" inputmode="numeric" placeholder="12345"></div>
+     </div>
+     <div class="field"><label>備註</label><input class="txt" id="ad-note" value="${esc(a.note||"")}" placeholder="程度、位置、繳費特例…"></div>
+     <div class="field"><label class="checkrow" style="margin:0"><input type="checkbox" id="ad-active" ${a.active!==false?"checked":""}> 在籍（取消勾選＝停用）</label></div>
+   </div>
+   <div class="mf">${editing?`<button class="btn danger ghost" id="ad-del">刪除</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="ad-save">儲存</button></div>`,"wide");
+  $("#ad-save",s).onclick=()=>{
+    const name=$("#ad-name",s).value.trim(); if(!name){ toast("請填姓名","bad"); return; }
+    a.name=name;
+    a.birthday=$("#ad-birthday",s).value;
+    a.phone=$("#ad-phone",s).value.trim();
+    a.last5=norm5($("#ad-last5",s).value);
+    a.note=$("#ad-note",s).value.trim();
+    a.active=$("#ad-active",s).checked;
+    if(!editing) S.adults.push(a);
+    closeScrim(s); pushAdults(); toast("已儲存","ok");
+  };
+  if(editing) $("#ad-del",s).onclick=()=>confirmModal(`刪除成人之夜球員「${a.name}」？`,()=>{
+    S.adults=S.adults.filter(x=>x.id!==a.id); closeScrim(s); pushAdults(); toast("已刪除","ok");
+  });
+}
 
 /* ---------------- role switch ---------------- */
 function switchRole(){
@@ -2180,8 +2277,9 @@ async function readXlsx(file){
   return {sheets,sheetGrid};
 }
 function importModal(kind){
-  const titles={students:"匯入學員名單",bank:"匯入玉山銀行交易明細",inv:"批量匯入：調入北屯"};
+  const titles={students:"匯入學員名單",adults:"匯入成人之夜球員名單",bank:"匯入玉山銀行交易明細",inv:"批量匯入：調入北屯"};
   const ph = kind==="students" ? "姓名\t備註\n王小明\t平日基礎"
+    : kind==="adults" ? "姓名\t電話\t生日\t後五碼\t備註\n陳大明\t0912345678\t1988-05-01\t12345\t"
     : kind==="inv" ? "品項\t數量\t備註\n冰刀\t10\t\n護具\t5\t\n隊服\t20\t新款"
     : "";
   const s=scrim(`
@@ -2258,6 +2356,33 @@ function buildImport(kind,table,opts){
           } else S.students.push(Object.assign({id:uid(),active:true},x));
         });
         pushStudents(); toast(`已匯入：新增 ${add}、更新 ${upd}`,"ok");
+      }
+    };
+  }
+  if(kind==="adults"){
+    let ni=pick(H,["姓名","名字","球員","學員","name"]); if(ni<0) ni=0;
+    const c={ phone:pick(H,["電話","手機","聯絡","phone","mobile"]), bd:pick(H,["生日","出生","birthday"]),
+      l5:pick(H,["後五碼","末五碼","後5碼","五碼"]), note:pick(H,["備註","note","說明"]) };
+    const g=(r,i)=>i>=0?String(r[i]||"").trim():"";
+    const recs=table.rows.map(r=>({
+      name:g(r,ni), phone:normPhone(g(r,c.phone)), birthday:normDate(g(r,c.bd)),
+      last5:norm5(g(r,c.l5)), note:g(r,c.note)
+    })).filter(x=>x.name && !["姓名","名字","球員"].includes(x.name) && !/\t/.test(x.name));
+    const byName=new Map(S.adults.map(a=>[a.name,a]));
+    let add=0,upd=0;
+    recs.forEach(x=>{ byName.has(x.name)?upd++:add++; });
+    return {
+      count:recs.length,
+      html:`<p class="hint">找到 <b>${recs.length}</b> 筆有效資料：新增 ${add}、更新既有 ${upd}。</p>
+        <div class="tw"><table><thead><tr><th>姓名</th><th>電話</th><th>生日</th><th>後五碼</th></tr></thead>
+        <tbody>${recs.slice(0,20).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.phone)}</td><td>${esc(x.birthday)}</td><td>${esc(x.last5)}</td></tr>`).join("")}</tbody></table></div>`,
+      commit:()=>{
+        recs.forEach(x=>{
+          const ex=byName.get(x.name);
+          if(ex){ Object.assign(ex,{ phone:x.phone||ex.phone, birthday:x.birthday||ex.birthday, last5:x.last5||ex.last5, note:x.note||ex.note }); }
+          else S.adults.push(Object.assign({id:uid(),active:true},x));
+        });
+        pushAdults(); toast(`已匯入：新增 ${add}、更新 ${upd}`,"ok");
       }
     };
   }
@@ -2418,6 +2543,10 @@ document.addEventListener("click",e=>{
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
   const dr=e.target.closest("[data-invdate]");
   if(dr){ const d=dr.dataset.invdate; invOpen.has(d)?invOpen.delete(d):invOpen.add(d); rerender(); return; }
+  const rst=e.target.closest("[data-roster]");
+  if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); saveLS(); rerender(); return; }
+  const ts=e.target.closest("[data-toggle-stu]");
+  if(ts && !e.target.closest("button")){ const id=ts.dataset.toggleStu; stuOpen.has(id)?stuOpen.delete(id):stuOpen.add(id); rerender(); return; }
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
@@ -2425,11 +2554,13 @@ document.addEventListener("click",e=>{
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
-  const t=e.target.closest("[data-act],[data-edit-student],[data-del-student],[data-edit-pay],[data-del-pay],[data-edit-item],[data-edit-move],[data-del-move],[data-assign],[data-bankpay],[data-mark-paid],[data-unmark-paid],[data-ignore],[data-del-cls]");
+  const t=e.target.closest("[data-act],[data-edit-student],[data-del-student],[data-edit-adult],[data-del-adult],[data-edit-pay],[data-del-pay],[data-edit-item],[data-edit-move],[data-del-move],[data-assign],[data-bankpay],[data-mark-paid],[data-unmark-paid],[data-ignore],[data-del-cls]");
   if(!t) return;
   const d=t.dataset;
   if(d.act==="add-student") studentEditModal();
   else if(d.act==="import-students") importModal("students");
+  else if(d.act==="add-adult") adultEditModal();
+  else if(d.act==="import-adults") importModal("adults");
   else if(d.act==="edit-dates") editDatesModal();
   else if(d.act==="add-pay") payModal();
   else if(d.act==="add-item") itemModal();
@@ -2457,6 +2588,9 @@ document.addEventListener("click",e=>{
   else if(d.editStudent) studentEditModal(d.editStudent);
   else if(d.delStudent){ const s=S.students.find(x=>x.id===d.delStudent);
     confirmModal(`刪除學員「${s?.name}」？`,()=>{ S.students=S.students.filter(x=>x.id!==d.delStudent); pushStudents(); toast("已刪除","ok"); }); }
+  else if(d.editAdult) adultEditModal(d.editAdult);
+  else if(d.delAdult){ const a=S.adults.find(x=>x.id===d.delAdult);
+    confirmModal(`刪除成人之夜球員「${a?.name}」？`,()=>{ S.adults=S.adults.filter(x=>x.id!==d.delAdult); pushAdults(); toast("已刪除","ok"); }); }
   else if(d.editPay) payModal(d.editPay);
   else if(d.delPay){ confirmModal("刪除這筆收款？",()=>{
       Object.keys(S.pays).forEach(y=>{ S.pays[y]=S.pays[y].filter(x=>x.id!==d.delPay); });
@@ -2517,11 +2651,12 @@ document.addEventListener("click",e=>{
   if(e.target.id==="set-op-save"){ setOp($("#set-op").value); rerender(); toast("已儲存","ok"); }
   if(e.target.id==="wipe"){
     confirmModal("確定清空全部資料？此動作無法復原。",async()=>{
-      S.settings=defaultSettings(); S.students=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={}; S.cost={};
+      S.settings=defaultSettings(); S.students=[]; S.adults=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={}; S.cost={};
       saveLS();
       if(DB){ try{
         await DB.doc("config/settings").set(clone(S.settings));
         await DB.doc("roster/students").set({students:[]});
+        await DB.doc("roster/adults").set({adults:[]});
         await DB.doc("inv/items").set({items:[]});
         for(const y of INV_YEARS()){ await DB.doc(`pay/${y}`).set({rows:[]}); await DB.doc(`bank/${y}`).set({txns:[]}); await DB.doc(`inv/moves-${y}`).set({moves:[]}); }
       }catch(err){ console.warn(err); } }
