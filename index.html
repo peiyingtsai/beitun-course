@@ -7,7 +7,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="app-build" content="2026-09-09n">
+<meta name="app-build" content="2026-09-09p">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9B%B8%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js?v=1"></script>
@@ -232,6 +232,16 @@ td.dcell.has{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
 .exbody table{width:100%}
 .exbody th{text-align:left;color:var(--muted);font-weight:600;vertical-align:top;padding:3px 10px 3px 0;white-space:nowrap}
 .exbody td{padding:3px 0}
+
+/* 報名「復原」版本清單 */
+.histrow{padding:11px 16px;border-bottom:1px solid var(--line-2)}
+.histrow:last-child{border-bottom:0}
+.histrow.now{background:var(--surface-2,rgba(127,127,127,.05))}
+.histhd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.histchg{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px 6px}
+.hchg{font-size:11px;font-weight:600;padding:2px 7px;border-radius:5px;white-space:nowrap}
+.hchg.add{background:var(--ok-soft);color:var(--ok)}
+.hchg.del{background:var(--bad-soft);color:var(--bad)}
 
 .statusbar{font-size:11.5px;color:var(--faint);padding:4px 22px 16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 .statusbar .live{display:inline-flex;gap:5px;align-items:center}
@@ -564,25 +574,49 @@ function restoreAttend(ym,idx){
     closeAllScrims(); pushAttend(ym); toast("已還原","ok");
   });
 }
+/* 從 from 狀態 → to 狀態 會有哪些逐格變動（給「復原」畫面看） */
+function attDiff(from,to){
+  const out=[]; const fc=from.cells||{}, tc=to.cells||{};
+  const md=s=>String(s).slice(5).replace("-","/");
+  [...new Set([...Object.keys(fc),...Object.keys(tc)])].sort().forEach(k=>{
+    const [sid,dt]=k.split("|");
+    const fs=new Set((fc[k]||[]).map(e=>e.slot)), ts=new Set((tc[k]||[]).map(e=>e.slot));
+    [...new Set([...fs,...ts])].sort((x,y)=>x-y).forEach(slot=>{
+      if(fs.has(slot)===ts.has(slot)) return;
+      out.push({ add:ts.has(slot), text:`${studentName(sid)} ${md(dt)} ${entryLabel(dt,{slot})}` });
+    });
+  });
+  const fd=new Set(from.dates||[]), td=new Set(to.dates||[]);
+  [...new Set([...fd,...td])].sort().forEach(d=>{
+    if(fd.has(d)===td.has(d)) return;
+    out.push({ add:td.has(d), text:`上課日 ${md(d)}` });
+  });
+  return out;
+}
 function attHistModal(ym){
   const a=attM(ym); const hist=a.hist||[];
   const nCells=o=>Object.values(o.cells||{}).reduce((n,arr)=>n+(arr?arr.length:0),0);
+  const chgHtml=h=>{
+    const dl=attDiff(a,h);
+    if(!dl.length) return `<div class="histchg"><span class="hint">與目前內容相同</span></div>`;
+    const cap=14;
+    return `<div class="histchg">${dl.slice(0,cap).map(x=>`<span class="hchg ${x.add?'add':'del'}">${x.add?'＋':'－'} ${esc(x.text)}</span>`).join("")}${dl.length>cap?`<span class="hint">…等 ${dl.length} 項變動</span>`:""}</div>`;
+  };
   const s=scrim(`
    <div class="mh"><h3>${esc(ymLabel(ym))} 報名 — 版本 / 復原</h3><button class="x" data-x>×</button></div>
-   <div class="mb">
-     <p class="hint">每次有人改動「報名表 / 上課日」並儲存，系統會自動把<b>改動前</b>的狀態存成一個版本（最多 ${ATT_HIST_MAX} 個）。按「還原到此」即可回到那個時間點的內容。</p>
-     <div class="tw"><table>
-       <thead><tr><th>時間</th><th>操作人</th><th class="num">當時勾選數</th><th></th></tr></thead>
-       <tbody>
-         <tr><td><b>現在</b></td><td class="hint">—</td><td class="num">${nCells(a)}</td><td class="hint">目前內容</td></tr>
-         ${hist.map((h,i)=>`<tr>
-           <td>${esc(fmtTime(h.at))}</td>
-           <td>${h.by?esc(h.by):'<span class="hint">未具名</span>'}</td>
-           <td class="num">${nCells(h)}</td>
-           <td class="right"><button class="btn sm" data-restore-att="${i}">還原到此</button></td>
-         </tr>`).join("")||`<tr><td colspan="4" class="empty">還沒有任何版本紀錄</td></tr>`}
-       </tbody>
-     </table></div>
+   <div class="mb" style="padding:0">
+     <p class="hint" style="padding:14px 16px 0">每次有人改「報名表 / 上課日」並儲存，系統會自動把<b>改動前</b>的內容存一個版本（最多 ${ATT_HIST_MAX} 個）。<br>
+       每個版本下方標的是「<b>還原到此</b>會相對於目前內容產生的變動」：<span class="hchg add">＋ 新增勾選</span>　<span class="hchg del">－ 取消勾選</span>。</p>
+     <div class="histrow now"><div class="histhd"><b>目前內容</b><span class="hint">共勾選 ${nCells(a)} 格</span></div></div>
+     ${hist.map((h,i)=>`<div class="histrow">
+       <div class="histhd">
+         <b>${esc(fmtTime(h.at))}</b>
+         <span class="hint">${h.by?esc(h.by):"未具名"}　·　當時勾選 ${nCells(h)} 格</span>
+         <span style="flex:1"></span>
+         <button class="btn sm" data-restore-att="${i}">還原到此</button>
+       </div>
+       ${chgHtml(h)}
+     </div>`).join("")||`<div class="histrow"><span class="hint">還沒有任何版本紀錄</span></div>`}
    </div>
    <div class="mf"><button class="btn primary" data-x>關閉</button></div>`,"wide");
   s.addEventListener("click",e=>{ const b=e.target.closest("[data-restore-att]"); if(b) restoreAttend(ym,+b.dataset.restoreAtt); });
@@ -908,7 +942,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09n";
+const APP_BUILD="2026-09-09p";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
