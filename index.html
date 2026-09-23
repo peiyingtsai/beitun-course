@@ -454,6 +454,7 @@ let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
+let stuSel=new Set();    // 學員資料 / 成人之夜球員：批量選取
 const attPrev={};        // ym -> 上次同步後的 {cells,dates}（給「復原」用的基準）
 const ATT_HIST_MAX=15;   // 報名表最多保留幾個版本
 
@@ -942,7 +943,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-09p";
+const APP_BUILD="2026-09-23a";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -986,12 +987,17 @@ function ageFrom(bd){
 }
 function viewStudents(){
   const rt=S.ui.rosterTab==="adult"?"adult":"kids";
+  const list=rt==='kids'?S.students:S.adults;
+  const allOn=list.length>0 && list.every(x=>stuSel.has(x.id));
   return `
   <div class="panel">
     <div class="ph"><div class="seg">
       <button data-roster="kids" class="${rt==='kids'?'on':''}">課程學員（${S.students.length}）</button>
       <button data-roster="adult" class="${rt==='adult'?'on':''}">成人之夜球員（${S.adults.length}）</button>
     </div><div class="grow"></div>
+      ${list.length?`<label class="hint" style="display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="ssel-all" ${allOn?"checked":""}> 全選</label>`:""}
+      ${stuSel.size?`<button class="btn sm danger" data-act="del-roster-sel">🗑 刪除選取（${stuSel.size}）</button>`:""}
       ${rt==='kids'
         ? `<button class="btn sm" data-act="import-students">⬆ 匯入 / 更新</button>
            <button class="btn primary sm" data-act="add-student">＋ 新增學員</button>`
@@ -1001,8 +1007,8 @@ function viewStudents(){
     ${rt==='kids'?kidsRoster():adultRoster()}
   </div>
   <p class="hint">${rt==='kids'
-    ? '點任一列展開看完整資料，「明細」看繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。'
-    : '成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
+    ? '勾選左側方框可複選，右上「刪除選取」批量刪除。點任一列展開看完整資料，「明細」看繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。'
+    : '勾選左側方框可複選，右上「刪除選取」批量刪除。成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
 }
 function kidsRoster(){
   const list=S.students.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
@@ -1016,6 +1022,7 @@ function kidsRoster(){
     return `<div class="exrow ${open?'open':''}">
       <div class="exhead" data-toggle-stu="${s.id}">
         <span class="extoggle">${open?"▾":"▸"}</span>
+        <input type="checkbox" data-ssel="${s.id}" ${stuSel.has(s.id)?"checked":""}>
         <b>${esc(s.name)}</b>${s.active===false?' <span class="chip mut">停用</span>':''}
         ${sub?`<span class="hint">${esc(sub)}</span>`:""}
         <span class="grow"></span>
@@ -1040,6 +1047,7 @@ function adultRoster(){
     return `<div class="exrow ${open?'open':''}">
       <div class="exhead" data-toggle-stu="${a.id}">
         <span class="extoggle">${open?"▾":"▸"}</span>
+        <input type="checkbox" data-ssel="${a.id}" ${stuSel.has(a.id)?"checked":""}>
         <b>${esc(a.name)}</b>${a.active===false?' <span class="chip mut">停用</span>':''}
         ${sub?`<span class="hint">${esc(sub)}</span>`:""}
         <span class="grow"></span>
@@ -2633,16 +2641,16 @@ document.addEventListener("click",e=>{
   const roleBtn=e.target.closest("#roleSwitch"); if(roleBtn){ switchRole(); return; }
   if(e.target.closest("#opEdit")){ opModal(); return; }
   const tb=e.target.closest("[data-tab]");
-  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); saveLS(); rerender(); return; }
+  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); stuSel.clear(); saveLS(); rerender(); return; }
   const aj=e.target.closest("[data-adj]"); if(aj){ e.stopPropagation(); adjustModal(aj.dataset.adj); return; }
   const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
   const dr=e.target.closest("[data-invdate]");
   if(dr){ const d=dr.dataset.invdate; invOpen.has(d)?invOpen.delete(d):invOpen.add(d); rerender(); return; }
   const rst=e.target.closest("[data-roster]");
-  if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); saveLS(); rerender(); return; }
+  if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); stuSel.clear(); saveLS(); rerender(); return; }
   const ts=e.target.closest("[data-toggle-stu]");
-  if(ts && !e.target.closest("button")){ const id=ts.dataset.toggleStu; stuOpen.has(id)?stuOpen.delete(id):stuOpen.add(id); rerender(); return; }
+  if(ts && !e.target.closest("button") && !e.target.closest("input")){ const id=ts.dataset.toggleStu; stuOpen.has(id)?stuOpen.delete(id):stuOpen.add(id); rerender(); return; }
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
@@ -2688,6 +2696,14 @@ document.addEventListener("click",e=>{
   else if(d.editAdult) adultEditModal(d.editAdult);
   else if(d.delAdult){ const a=S.adults.find(x=>x.id===d.delAdult);
     confirmModal(`刪除成人之夜球員「${a?.name}」？`,()=>{ S.adults=S.adults.filter(x=>x.id!==d.delAdult); pushAdults(); toast("已刪除","ok"); }); }
+  else if(d.act==="del-roster-sel"){ const ids=[...stuSel]; if(!ids.length) return;
+    const rt=S.ui.rosterTab==="adult"?"adult":"kids", label=rt==="kids"?"學員":"成人之夜球員";
+    confirmModal(`刪除選取的 ${ids.length} 位${label}？此動作無法復原。`,()=>{
+      const set=new Set(ids);
+      if(rt==="kids"){ S.students=S.students.filter(x=>!set.has(x.id)); pushStudents(); }
+      else { S.adults=S.adults.filter(x=>!set.has(x.id)); pushAdults(); }
+      stuSel.clear(); toast(`已刪除 ${ids.length} 筆`,"ok");
+    }); }
   else if(d.editPay) payModal(d.editPay);
   else if(d.delPay){ confirmModal("刪除這筆收款？",()=>{
       Object.keys(S.pays).forEach(y=>{ S.pays[y]=S.pays[y].filter(x=>x.id!==d.delPay); });
@@ -2780,6 +2796,13 @@ document.addEventListener("change",e=>{
       if(isSale!==saleSide) return;
       on?invSel.add(m.id):invSel.delete(m.id);
     });
+    rerender();
+  }
+  const ss=e.target.closest("[data-ssel]");
+  if(ss){ const id=ss.dataset.ssel; e.target.checked?stuSel.add(id):stuSel.delete(id); rerender(); return; }
+  if(e.target.id==="ssel-all"){
+    const on=e.target.checked, rt=S.ui.rosterTab==="adult"?"adult":"kids";
+    (rt==="kids"?S.students:S.adults).forEach(x=> on?stuSel.add(x.id):stuSel.delete(x.id));
     rerender();
   }
 });
