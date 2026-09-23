@@ -456,6 +456,7 @@ let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 let pendingPayOpen=false; // 總覽「本月待核對收款」清單是否展開
+let payOpen=new Set();   // 收款登錄：展開的列
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
 let stuSel=new Set();    // 學員資料 / 成人之夜球員：批量選取
 let rosterQuery="";      // 學員資料 / 成人之夜球員：搜尋關鍵字
@@ -1002,7 +1003,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23h";
+const APP_BUILD="2026-09-23i";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1516,29 +1517,37 @@ function viewPay(){
   const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   return `
   <div class="panel">
-    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填）</span></h3><div class="grow"></div>
+    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填，點列可展開看分配明細）</span></h3><div class="grow"></div>
       <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button></div>
-    <div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>日期</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
-      <tbody>${rows.map(p=>{
-        const allocTxt=(p.allocs||[]).map(a=>`${esc(studentName(a.sid))} <span class="hint">${a.ym}${a.kind==="makeup"?" 補堂":""}</span> ${fmtP(a.amount)}`).join("<br>");
-        const tip=esc(reconTip(p));
-        const bankSt = p.cash ? `<span class="chip mut">現金</span>`
-          : p.matchTxnId ? `<span class="chip ok" title="${tip}"><span class="dot"></span>已核對</span>`
-          : p.bankPaid ? `<span class="chip ok" title="${tip}">已核對</span>`
-          : `<span class="chip warn" title="${tip}"><span class="dot"></span>待對帳</span>`;
-        return `<tr>
-          <td class="nowrap">${esc(p.date||"")}</td>
-          <td>${esc(p.payer||"")}${p.last5&&!p.cash?`<div class="hint">後五碼 ${esc(p.last5)}</div>`:""}</td>
-          <td class="hint" style="line-height:1.7">${allocTxt||"—"}</td>
-          <td class="num">${fmt(p.amount)}</td>
-          <td>${p.cash?"現金":"匯款"}</td>
-          <td>${bankSt}${isMgr()&&!p.cash?(p.matchTxnId?"":p.bankPaid?`<button class="btn sm ghost" data-unmark-paid="pay:${p.id}" style="margin-left:6px">取消</button>`:`<button class="btn sm primary" data-mark-paid="pay:${p.id}" style="margin-left:6px">✓ 核銷</button>`):""}</td>
-          <td class="right nowrap"><button class="btn sm ghost" data-edit-pay="${p.id}">編輯</button>
-            <button class="btn sm danger" data-del-pay="${p.id}">刪</button></td>
-        </tr>`;
-      }).join("")||`<tr><td colspan="7" class="empty">尚無收款紀錄</td></tr>`}</tbody>
-    </table></div></div>
+    ${!rows.length?`<div class="empty"><div class="big">＄</div>尚無收款紀錄。按「＋ 新增一筆收款」開始登錄。</div>`
+    :`<div class="pb flush"><div class="exlist">${rows.map(p=>{
+      const open=payOpen.has(p.id);
+      const tip=esc(reconTip(p));
+      const bankSt = p.cash ? `<span class="chip mut">現金</span>`
+        : p.matchTxnId ? `<span class="chip ok" title="${tip}"><span class="dot"></span>已核對</span>`
+        : p.bankPaid ? `<span class="chip ok" title="${tip}">已核對</span>`
+        : `<span class="chip warn" title="${tip}"><span class="dot"></span>待對帳</span>`;
+      const allocRows=(p.allocs||[]).map(a=>`<tr><td>${esc(studentName(a.sid))}</td><td>${esc(a.ym)}${a.kind==="makeup"?" · 補堂":""}</td><td class="num">${fmt(a.amount)}</td></tr>`).join("");
+      return `<div class="exrow ${open?'open':''}">
+        <div class="exhead" data-toggle-pay="${p.id}">
+          <span class="extoggle">${open?"▾":"▸"}</span>
+          <b>${esc(p.date||"")}</b>
+          <span>${esc(p.payer||studentNames(p)||"—")}</span>
+          <span class="hint">${p.cash?"現金":"匯款"+(p.last5?"　後五碼 "+esc(p.last5):"")}</span>
+          ${bankSt}
+          <span class="grow"></span>
+          <b class="num">${fmt(p.amount)}</b>
+          <button class="btn sm ghost" data-edit-pay="${p.id}">編輯</button>
+          <button class="btn sm danger" data-del-pay="${p.id}">刪</button>
+        </div>
+        ${open?`<div class="exbody">
+          <table><thead><tr><th>學員</th><th>月份</th><th class="num">金額</th></tr></thead>
+            <tbody>${allocRows||'<tr><td colspan="3" class="hint">沒有分配明細</td></tr>'}</tbody></table>
+          ${p.note?`<p class="hint" style="margin:8px 0 0">備註：${esc(p.note)}</p>`:""}
+          ${isMgr()&&!p.cash?`<div style="margin-top:10px">${p.matchTxnId?"":p.bankPaid?`<button class="btn sm ghost" data-unmark-paid="pay:${p.id}">取消核銷</button>`:`<button class="btn sm primary" data-mark-paid="pay:${p.id}">✓ 核銷</button>`}</div>`:""}
+        </div>`:""}
+      </div>`;
+    }).join("")}</div></div>`}
   </div>
   ${viewAdultPay()}`;
 }
@@ -2842,7 +2851,7 @@ document.addEventListener("click",e=>{
   const roleBtn=e.target.closest("#roleSwitch"); if(roleBtn){ switchRole(); return; }
   if(e.target.closest("#opEdit")){ opModal(); return; }
   const tb=e.target.closest("[data-tab]");
-  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); stuSel.clear(); rosterQuery=""; saveLS(); rerender(); return; }
+  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); stuSel.clear(); rosterQuery=""; payOpen.clear(); saveLS(); rerender(); return; }
   const aj=e.target.closest("[data-adj]"); if(aj){ e.stopPropagation(); adjustModal(aj.dataset.adj); return; }
   const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
@@ -2852,6 +2861,8 @@ document.addEventListener("click",e=>{
   if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); stuSel.clear(); rosterQuery=""; saveLS(); rerender(); return; }
   const ts=e.target.closest("[data-toggle-stu]");
   if(ts && !e.target.closest("button") && !e.target.closest("input")){ const id=ts.dataset.toggleStu; stuOpen.has(id)?stuOpen.delete(id):stuOpen.add(id); rerender(); return; }
+  const tp=e.target.closest("[data-toggle-pay]");
+  if(tp && !e.target.closest("button")){ const id=tp.dataset.togglePay; payOpen.has(id)?payOpen.delete(id):payOpen.add(id); rerender(); return; }
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
