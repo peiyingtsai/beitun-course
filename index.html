@@ -457,6 +457,7 @@ let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展
 let pendingPayOpen=false; // 總覽「本月待核對收款」清單是否展開
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
 let stuSel=new Set();    // 學員資料 / 成人之夜球員：批量選取
+let rosterQuery="";      // 學員資料 / 成人之夜球員：搜尋關鍵字
 const attPrev={};        // ym -> 上次同步後的 {cells,dates}（給「復原」用的基準）
 const ATT_HIST_MAX=15;   // 報名表最多保留幾個版本
 
@@ -971,7 +972,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23e";
+const APP_BUILD="2026-09-23f";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1013,9 +1014,19 @@ function ageFrom(bd){
   if(t.getMonth()+1 < +m[2] || (t.getMonth()+1===+m[2] && t.getDate()<+m[3])) a--;
   return a>=0&&a<120 ? a+" 歲" : "";
 }
+function rosterSearchText(x,rt){
+  return (rt==="kids"
+    ? [x.name,x.parent,x.parentPhone,x.mobile,x.last5,x.email,x.note]
+    : [x.name,x.phone,x.last5,x.note]).filter(Boolean).join(" ").toLowerCase();
+}
+function filterRoster(arr,rt){
+  const q=rosterQuery.trim().toLowerCase();
+  if(!q) return arr;
+  return arr.filter(x=>rosterSearchText(x,rt).includes(q));
+}
 function viewStudents(){
   const rt=S.ui.rosterTab==="adult"?"adult":"kids";
-  const list=rt==='kids'?S.students:S.adults;
+  const list=filterRoster(rt==='kids'?S.students:S.adults, rt);
   const allOn=list.length>0 && list.every(x=>stuSel.has(x.id));
   return `
   <div class="panel">
@@ -1032,6 +1043,9 @@ function viewStudents(){
         : `<button class="btn sm" data-act="import-adults">⬆ 匯入 / 更新</button>
            <button class="btn primary sm" data-act="add-adult">＋ 新增球員</button>`}
     </div>
+    <div class="pb" style="padding-bottom:0">
+      <input type="search" id="roster-q" class="txt" placeholder="搜尋姓名、家長、電話、後五碼…" style="max-width:320px" value="${esc(rosterQuery)}">
+    </div>
     ${rt==='kids'?kidsRoster():adultRoster()}
   </div>
   <p class="hint">${rt==='kids'
@@ -1039,8 +1053,9 @@ function viewStudents(){
     : '勾選左側方框可複選，右上「刪除選取」批量刪除。成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
 }
 function kidsRoster(){
-  const list=S.students.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
-  if(!list.length) return `<div class="empty"><div class="big">☷</div>還沒有學員。可「＋ 新增學員」逐筆建，或「⬆ 匯入」貼上 Excel。</div>`;
+  if(!S.students.length) return `<div class="empty"><div class="big">☷</div>還沒有學員。可「＋ 新增學員」逐筆建，或「⬆ 匯入」貼上 Excel。</div>`;
+  const list=filterRoster(S.students,"kids").slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  if(!list.length) return `<div class="empty"><div class="big">🔍</div>找不到符合「${esc(rosterQuery)}」的學員</div>`;
   return `<div class="pb flush"><div class="exlist">${list.map(s=>{
     const open=stuOpen.has(s.id);
     const sub=[s.parentPhone||s.mobile,s.birthday?ageFrom(s.birthday):""].filter(Boolean).join(" · ");
@@ -1065,8 +1080,9 @@ function kidsRoster(){
   }).join("")}</div></div>`;
 }
 function adultRoster(){
-  const list=S.adults.slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
-  if(!list.length) return `<div class="empty"><div class="big">☷</div>還沒有成人之夜球員。可「＋ 新增球員」逐筆建，或「⬆ 匯入」貼上名單。</div>`;
+  if(!S.adults.length) return `<div class="empty"><div class="big">☷</div>還沒有成人之夜球員。可「＋ 新增球員」逐筆建，或「⬆ 匯入」貼上名單。</div>`;
+  const list=filterRoster(S.adults,"adult").slice().sort((a,b)=>a.name.localeCompare(b.name,"zh-Hant"));
+  if(!list.length) return `<div class="empty"><div class="big">🔍</div>找不到符合「${esc(rosterQuery)}」的球員</div>`;
   return `<div class="pb flush"><div class="exlist">${list.map(a=>{
     const open=stuOpen.has(a.id);
     const sub=[a.phone,a.birthday?ageFrom(a.birthday):""].filter(Boolean).join(" · ");
@@ -2691,14 +2707,14 @@ document.addEventListener("click",e=>{
   const roleBtn=e.target.closest("#roleSwitch"); if(roleBtn){ switchRole(); return; }
   if(e.target.closest("#opEdit")){ opModal(); return; }
   const tb=e.target.closest("[data-tab]");
-  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); stuSel.clear(); saveLS(); rerender(); return; }
+  if(tb){ const tab=tb.dataset.tab; if(["bankCourse","bankInv","pnl"].includes(tab)&&!isMgr()){ switchRole(); return; } S.ui.tab=tab; invSel.clear(); stuSel.clear(); rosterQuery=""; saveLS(); rerender(); return; }
   const aj=e.target.closest("[data-adj]"); if(aj){ e.stopPropagation(); adjustModal(aj.dataset.adj); return; }
   const os=e.target.closest("[data-open-student]"); if(os){ studentModal(os.dataset.openStudent); return; }
   const ce=e.target.closest("[data-cell]"); if(ce){ const [sid,dt]=ce.dataset.cell.split("|"); cellModal(sid,dt); return; }
   const dr=e.target.closest("[data-invdate]");
   if(dr){ const d=dr.dataset.invdate; invOpen.has(d)?invOpen.delete(d):invOpen.add(d); rerender(); return; }
   const rst=e.target.closest("[data-roster]");
-  if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); stuSel.clear(); saveLS(); rerender(); return; }
+  if(rst){ S.ui.rosterTab=rst.dataset.roster; stuOpen.clear(); stuSel.clear(); rosterQuery=""; saveLS(); rerender(); return; }
   const ts=e.target.closest("[data-toggle-stu]");
   if(ts && !e.target.closest("button") && !e.target.closest("input")){ const id=ts.dataset.toggleStu; stuOpen.has(id)?stuOpen.delete(id):stuOpen.add(id); rerender(); return; }
   if(e.target.closest("[data-toggle-owe]") && !e.target.closest("button")){ oweOpen=!oweOpen; rerender(); return; }
@@ -2788,6 +2804,14 @@ document.addEventListener("click",e=>{
 });
 document.addEventListener("input",e=>{
   const t=e.target;
+  if(t.id==="roster-q"){
+    rosterQuery=t.value;
+    const pos=t.selectionStart, endPos=t.selectionEnd;
+    rerender();
+    const el=$("#roster-q");
+    if(el){ el.focus(); try{ el.setSelectionRange(pos,endPos); }catch(e){} }
+    return;
+  }
   if(t.dataset.sf){ const {wd,i,sf}=t.dataset; const o=S.settings.price[wd][+i]; if(o){ o[sf]= sf==="price"?num(t.value):t.value; } }
   if(t.dataset.cd){ if(!S.settings.consecDiscount) S.settings.consecDiscount={price:1200,weeks:4,amount:300}; S.settings.consecDiscount[t.dataset.cd]=num(t.value); }
   if(t.dataset.cf){ const c=S.settings.classes.find(x=>x.id===t.dataset.id); if(c) c[t.dataset.cf]=t.value; }
@@ -2853,7 +2877,7 @@ document.addEventListener("change",e=>{
   if(ss){ const id=ss.dataset.ssel; e.target.checked?stuSel.add(id):stuSel.delete(id); rerender(); return; }
   if(e.target.id==="ssel-all"){
     const on=e.target.checked, rt=S.ui.rosterTab==="adult"?"adult":"kids";
-    (rt==="kids"?S.students:S.adults).forEach(x=> on?stuSel.add(x.id):stuSel.delete(x.id));
+    filterRoster(rt==="kids"?S.students:S.adults, rt).forEach(x=> on?stuSel.add(x.id):stuSel.delete(x.id));
     rerender();
   }
 });
