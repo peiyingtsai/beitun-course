@@ -456,6 +456,7 @@ let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
 let pendingPayOpen=false; // 總覽「本月待核對收款」清單是否展開
+let payListOpen=false;   // 收款登錄整個清單是否展開
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
 let stuSel=new Set();    // 學員資料 / 成人之夜球員：批量選取
 let rosterQuery="";      // 學員資料 / 成人之夜球員：搜尋關鍵字
@@ -1002,7 +1003,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23l";
+const APP_BUILD="2026-09-23m";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1514,11 +1515,17 @@ function editDatesModal(){
 /* ---------------- pay ---------------- */
 function viewPay(){
   const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const nOpen=rows.filter(p=>!p.cash && !p.matchTxnId && !p.bankPaid).length;
   return `
   <div class="panel">
-    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填）</span></h3><div class="grow"></div>
-      <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button></div>
-    <div class="pb flush"><div class="tw"><table>
+    <div class="ph" data-toggle-paylist style="cursor:pointer">
+      <h3>${payListOpen?"▾":"▸"} 收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填）</span></h3>
+      <span class="chip mut">${rows.length} 筆</span>
+      ${nOpen?`<span class="chip warn">${nOpen} 筆待對帳</span>`:""}
+      <div class="grow"></div>
+      <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button>
+    </div>
+    ${payListOpen?`<div class="pb flush"><div class="tw"><table>
       <thead><tr><th>日期</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
       <tbody>${rows.map(p=>{
         const allocTxt=(p.allocs||[]).map(a=>`${esc(studentName(a.sid))} <span class="hint">${a.ym}${a.kind==="makeup"?" 補堂":""}</span> ${fmtP(a.amount)}`).join("<br>");
@@ -1538,7 +1545,7 @@ function viewPay(){
             <button class="btn sm danger" data-del-pay="${p.id}">刪</button></td>
         </tr>`;
       }).join("")||`<tr><td colspan="7" class="empty">尚無收款紀錄</td></tr>`}</tbody>
-    </table></div></div>
+    </table></div></div>`:""}
   </div>
   ${viewAdultPay()}`;
 }
@@ -2857,6 +2864,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-pendingpay]") && !e.target.closest("button")){ pendingPayOpen=!pendingPayOpen; rerender(); return; }
+  if(e.target.closest("[data-toggle-paylist]") && !e.target.closest("button")){ payListOpen=!payListOpen; rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
