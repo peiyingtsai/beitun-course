@@ -1002,7 +1002,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23g";
+const APP_BUILD="2026-09-23h";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1078,7 +1078,6 @@ function viewStudents(){
     </div>
     ${rt==='kids'?kidsRoster():adultRoster()}
   </div>
-  ${rt==='adult'?viewAdultPay():""}
   <p class="hint">${rt==='kids'
     ? '勾選左側方框可複選，右上「刪除選取」批量刪除。點任一列展開看完整資料，「明細」看繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。'
     : '勾選左側方框可複選，右上「刪除選取」批量刪除。成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
@@ -1285,7 +1284,7 @@ function viewOverview(){
     <div class="card ${adultPending.length?'':'accent'}"><div class="k">尚未核對</div><div class="v ${adultPending.length?'neg':'pos'}">${fmt(adultPendingAmt)}</div><div class="sub">${adultPending.length?adultPending.length+" 筆":"全數已核對"}</div></div>
   </div>
   <div class="btnrow" style="margin-bottom:14px">
-    <button class="btn sm" data-tab="students">前往「學員資料 → 成人之夜球員」登記 →</button>
+    <button class="btn sm" data-tab="pay">前往「收款登錄」登記 →</button>
   </div>
 
   <h3 style="margin:22px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:16px">裝備銷售 · ${iy} 年</h3>
@@ -1540,7 +1539,8 @@ function viewPay(){
         </tr>`;
       }).join("")||`<tr><td colspan="7" class="empty">尚無收款紀錄</td></tr>`}</tbody>
     </table></div></div>
-  </div>`;
+  </div>
+  ${viewAdultPay()}`;
 }
 function payModal(id){
   const yNow=new Date().getFullYear();
@@ -1864,7 +1864,7 @@ function viewPnl(){
       </tfoot>
     </table></div></div>
   </div>`:""}
-  <p class="hint">「課程收入」＝該月「收款登錄」實際收到的款項（含現金＋匯款，已反映折扣與少繳）；原價僅列為參考。「成人之夜收入」＝「學員資料 → 成人之夜球員 → 現場收款登記」登記的金額（不論當筆是否已核對，跟課程收入定義一致）。<br>
+  <p class="hint">「課程收入」＝該月「收款登錄」實際收到的款項（含現金＋匯款，已反映折扣與少繳）；原價僅列為參考。「成人之夜收入」＝「收款登錄」下方「現場收款登記」登記的金額（不論當筆是否已核對，跟課程收入定義一致）。<br>
   課程收款是整月結算，各周欄位是依原價占比分攤估算；成人之夜每筆都有明確日期，直接歸到當周，不用估算。固定成本（冰場冰時費用、固定人事成本）每月填一次；變動成本（其餘 6 類）按周填。只有管理者看得到、可編輯。</p>`;
 }
 
