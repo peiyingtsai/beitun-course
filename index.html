@@ -390,7 +390,8 @@ function confirmModal(msg,onOk,okLabel="確定",danger=true){
 function scrim(inner,wide){
   const s=document.createElement("div"); s.className="scrim";
   s.innerHTML=`<div class="modal ${wide?'wide':''}">${inner}</div>`;
-  s.addEventListener("click",e=>{ if(e.target===s||e.target.closest("[data-x]")) closeScrim(s); });
+  // 點編輯視窗外側（遮罩）不會關閉，避免填到一半的資料被誤觸清空；只能用 × 或視窗內的按鈕關閉
+  s.addEventListener("click",e=>{ if(e.target.closest("[data-x]")) closeScrim(s); });
   document.body.appendChild(s); return s;
 }
 function closeScrim(s){ s.remove(); }
@@ -943,7 +944,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23a";
+const APP_BUILD="2026-09-23b";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
