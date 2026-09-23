@@ -866,6 +866,21 @@ function reconcile(year){
 }
 function studentNames(p){ return [...new Set((p.allocs||[]).map(a=>studentName(a.sid)))].join("、"); }
 
+/* 對帳狀態的滑鼠提示：對到哪一筆銀行明細／誰在什麼時候手動核銷 */
+function findTxn(txnId){ for(const y in S.bank){ const t=(S.bank[y]||[]).find(x=>x.id===txnId); if(t) return t; } return null; }
+function reconTip(rec){
+  if(rec.cash) return "現金收款，不進銀行對帳";
+  const who=rec.matchBy?`由「${rec.matchBy}」`:"";
+  if(rec.matchTxnId){
+    const t=findTxn(rec.matchTxnId);
+    return t
+      ? `${who}對到銀行明細：${t.txnDate||t.postDate||""}　存入 ${fmt(t.deposit)}　${t.summary||""}`.trim()
+      : `${who}已對到一筆銀行明細（${rec.matchDate||"日期不明"}）`.trim();
+  }
+  if(rec.bankPaid) return `${who}手動核銷${rec.matchDate?`，入帳日期 ${rec.matchDate}`:""}`.trim();
+  return "尚未核對／核銷";
+}
+
 async function runAutoMatch(year,side){
   const R=reconcile(year);
   const used=new Set(); let n=0;
@@ -876,6 +891,7 @@ async function runAutoMatch(year,side){
         r.ref.matchTxnId=ti.txn.id;
         r.ref.matchDate=ti.txn.txnDate||ti.txn.postDate||today();
         r.ref.bankPaid=true;
+        r.ref.matchBy=OP?`自動比對·${OP}`:"自動比對";
         used.add(r.id); n++;
       });
     }
@@ -944,7 +960,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23c";
+const APP_BUILD="2026-09-23d";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1344,10 +1360,11 @@ function viewPay(){
       <thead><tr><th>日期</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
       <tbody>${rows.map(p=>{
         const allocTxt=(p.allocs||[]).map(a=>`${esc(studentName(a.sid))} <span class="hint">${a.ym}${a.kind==="makeup"?" 補堂":""}</span> ${fmtP(a.amount)}`).join("<br>");
+        const tip=esc(reconTip(p));
         const bankSt = p.cash ? `<span class="chip mut">現金</span>`
-          : p.matchTxnId ? `<span class="chip ok"><span class="dot"></span>已核對</span>`
-          : p.bankPaid ? `<span class="chip ok">已核對</span>`
-          : `<span class="chip warn"><span class="dot"></span>待對帳</span>`;
+          : p.matchTxnId ? `<span class="chip ok" title="${tip}"><span class="dot"></span>已核對</span>`
+          : p.bankPaid ? `<span class="chip ok" title="${tip}">已核對</span>`
+          : `<span class="chip warn" title="${tip}"><span class="dot"></span>待對帳</span>`;
         return `<tr>
           <td class="nowrap">${esc(p.date||"")}</td>
           <td>${esc(p.payer||"")}${p.last5&&!p.cash?`<div class="hint">後五碼 ${esc(p.last5)}</div>`:""}</td>
@@ -1551,7 +1568,7 @@ function studentModal(sid){
        <tbody>${paysOf.map(p=>{
          const amt=p.allocs.filter(a=>a.sid===sid).reduce((x,a)=>x+num(a.amount),0);
          return `<tr><td>${esc(p.date)}</td><td>${p.cash?"現金":"匯款 "+esc(p.last5||"")}</td><td class="num">${fmt(amt)}</td>
-           <td>${p.cash?"—":(p.matchTxnId||p.bankPaid)?'<span class="chip ok">已核對</span>':'<span class="chip warn">待對帳</span>'}</td></tr>`;
+           <td>${p.cash?"—":(p.matchTxnId||p.bankPaid)?`<span class="chip ok" title="${esc(reconTip(p))}">已核對</span>`:`<span class="chip warn" title="${esc(reconTip(p))}">待對帳</span>`}</td></tr>`;
        }).join("")||`<tr><td colspan="4" class="hint">無</td></tr>`}</tbody></table></div>
    </div>
    <div class="mf"><button class="btn ghost" data-edit-student="${sid}">編輯學員</button><button class="btn primary" data-x>關閉</button></div>`,"wide");
@@ -1798,10 +1815,10 @@ function assignModal(arg){
       const on=sel.has(r.id);
       if(side==="pay"){
         const p=allPays().find(x=>x.id===r.id);
-        if(p){ if(on){ p.matchTxnId=t.id; p.matchDate=date; p.bankPaid=true; } else if(p.matchTxnId===t.id){ p.matchTxnId=null; } }
+        if(p){ if(on){ p.matchTxnId=t.id; p.matchDate=date; p.bankPaid=true; p.matchBy=OP?`指派·${OP}`:"指派"; } else if(p.matchTxnId===t.id){ p.matchTxnId=null; p.matchBy=null; } }
       } else {
         const m=allMoves().find(x=>x.id===r.id);
-        if(m){ if(on){ m.matchTxnId=t.id; m.bankPaid=true; } else if(m.matchTxnId===t.id){ m.matchTxnId=null; } }
+        if(m){ if(on){ m.matchTxnId=t.id; m.bankPaid=true; m.matchBy=OP?`指派·${OP}`:"指派"; } else if(m.matchTxnId===t.id){ m.matchTxnId=null; m.matchBy=null; } }
       }
     });
     closeScrim(s);
@@ -1891,7 +1908,7 @@ function bankPayModal(txnId){
     payY(yr).push({
       id:uid(), date, amount:allocSum, payer:cand.map(x=>x.name).join("、"),
       last5:norm5(t.last5), cash:false, note:ti.pay.otherSum?"由銀行對帳建立（此匯款另含裝備）":"由銀行對帳建立",
-      allocs, matchTxnId:t.id, matchDate:date, bankPaid:true
+      allocs, matchTxnId:t.id, matchDate:date, bankPaid:true, matchBy:OP?`建收款·${OP}`:"建收款"
     });
     closeScrim(s);
     INV_YEARS().concat([+yr]).forEach(yy=>{ if(S.pays[yy]) pushPays(yy); });
@@ -1917,7 +1934,7 @@ function markPaidModal(arg){
    </div>
    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="mp-ok">核銷</button></div>`);
   $("#mp-ok",s).onclick=()=>{
-    rec.bankPaid=true; rec.matchDate=$("#mp-date",s).value||today(); rec.matchTxnId=null;
+    rec.bankPaid=true; rec.matchDate=$("#mp-date",s).value||today(); rec.matchTxnId=null; rec.matchBy=OP||"";
     closeScrim(s);
     if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
     toast("已核銷","ok");
@@ -1928,7 +1945,7 @@ function unmarkPaid(arg){
   const rec = kind==="pay" ? allPays().find(x=>x.id===id) : allMoves().find(x=>x.id===id);
   if(!rec) return;
   confirmModal("取消這筆的手動核銷？會回到「尚未對到銀行」。",()=>{
-    rec.bankPaid=false; rec.matchDate=null;
+    rec.bankPaid=false; rec.matchDate=null; rec.matchBy=null;
     if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
     toast("已取消核銷","ok");
   });
@@ -1986,9 +2003,10 @@ function viewInv(){
   let tQty=0,tAmt=0;
   const saleRows=sales.map(m=>{
     const amt=num(m.price)*num(m.qty); tQty+=num(m.qty); tAmt+=amt;
+    const saleTip=esc(reconTip(m));
     const rst = m.cash ? `<span class="chip mut">現金</span>`
-      : (m.matchTxnId||m.bankPaid) ? `<span class="chip ok"><span class="dot"></span>已核對</span>`
-      : `<span class="chip warn"><span class="dot"></span>待對帳</span>`;
+      : (m.matchTxnId||m.bankPaid) ? `<span class="chip ok" title="${saleTip}"><span class="dot"></span>已核對</span>`
+      : `<span class="chip warn" title="${saleTip}"><span class="dot"></span>待對帳</span>`;
     return `<tr class="${invSel.has(m.id)?'selrow':''}">
       <td><input type="checkbox" data-msel="${m.id}" ${invSel.has(m.id)?"checked":""}></td>
       <td class="nowrap">${esc(m.date||"")}</td>
