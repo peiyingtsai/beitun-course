@@ -1003,7 +1003,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23i";
+const APP_BUILD="2026-09-23k";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1517,7 +1517,7 @@ function viewPay(){
   const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   return `
   <div class="panel">
-    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填，點列可展開看分配明細）</span></h3><div class="grow"></div>
+    <div class="ph"><h3>收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填，點列展開看分配到哪些學員）</span></h3><div class="grow"></div>
       <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button></div>
     ${!rows.length?`<div class="empty"><div class="big">＄</div>尚無收款紀錄。按「＋ 新增一筆收款」開始登錄。</div>`
     :`<div class="pb flush"><div class="exlist">${rows.map(p=>{
@@ -1536,7 +1536,7 @@ function viewPay(){
           <span class="hint">${p.cash?"現金":"匯款"+(p.last5?"　後五碼 "+esc(p.last5):"")}</span>
           ${bankSt}
           <span class="grow"></span>
-          <b class="num">${fmt(p.amount)}</b>
+          <b>${fmt(p.amount)}</b>
           <button class="btn sm ghost" data-edit-pay="${p.id}">編輯</button>
           <button class="btn sm danger" data-del-pay="${p.id}">刪</button>
         </div>
