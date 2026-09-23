@@ -438,6 +438,7 @@ let S={
   adults:[],             // 成人之夜球員 {id,name,phone,birthday,last5,note,active}
   attend:{},              // ym -> {dates:[], cells:{ "sid|date":[{slot,classId}] }, hist:[{at,by,cells,dates}] }
   pays:{},                // year -> [ {id,date,amount,last5,cash,payer,note,allocs:[{sid,ym,amount,kind,note}],matchTxnId,matchDate,bankPaid} ]
+  adultPay:{},            // year -> [ 成人之夜現場收款 {id,date,count,price,amount,note,by,createdAt,matchTxnId,matchDate,matchBy,bankPaid} ]
   bank:{},                // year -> [ txn ]
   invItems:[],            // {id,name,unit,note}
   invMoves:{},            // year -> [ {id,type:in|transfer|sale,date,itemId,qty,price,last5,cash,buyer,note,matchTxnId,bankPaid} ]
@@ -466,8 +467,10 @@ function costM(ym){ if(!S.cost[ym]) S.cost[ym]={monthly:{},weeks:{}}; if(!S.cost
 function payY(y){ if(!S.pays[y]) S.pays[y]=[]; return S.pays[y]; }
 function bankY(y){ if(!S.bank[y]) S.bank[y]=[]; return S.bank[y]; }
 function moveY(y){ if(!S.invMoves[y]) S.invMoves[y]=[]; return S.invMoves[y]; }
+function adultPayY(y){ if(!S.adultPay[y]) S.adultPay[y]=[]; return S.adultPay[y]; }
 function allPays(){ return Object.values(S.pays).flat(); }
 function allMoves(){ return Object.values(S.invMoves).flat(); }
+function allAdultPay(){ return Object.values(S.adultPay).flat(); }
 function className(cid){ const c=S.settings.classes.find(x=>x.id===cid); return c?c.name:"?"; }
 function studentName(sid){ const s=S.students.find(x=>x.id===sid); return s?s.name:"(已刪)"; }
 function itemName(iid){ const i=S.invItems.find(x=>x.id===iid); return i?i.name:"(已刪)"; }
@@ -478,7 +481,7 @@ function loadLS(){
     if(j){
       S.settings=Object.assign(defaultSettings(),j.settings||{});
       S.students=j.students||[]; S.adults=j.adults||[]; S.attend=j.attend||{};
-      S.pays=j.pays||{}; S.bank=j.bank||{};
+      S.pays=j.pays||{}; S.bank=j.bank||{}; S.adultPay=j.adultPay||{};
       S.invItems=j.invItems||[]; S.invMoves=j.invMoves||{};
       S.cost=j.cost||{};
       S.ui=Object.assign(S.ui,j.ui||{});
@@ -488,7 +491,7 @@ function loadLS(){
 }
 function saveLS(){
   try{ localStorage.setItem(LS,JSON.stringify({
-    settings:S.settings,students:S.students,adults:S.adults,attend:S.attend,pays:S.pays,bank:S.bank,
+    settings:S.settings,students:S.students,adults:S.adults,attend:S.attend,pays:S.pays,bank:S.bank,adultPay:S.adultPay,
     invItems:S.invItems,invMoves:S.invMoves,cost:S.cost,ui:S.ui
   })); }catch(e){}
 }
@@ -522,6 +525,7 @@ async function initDB(){
     DB.doc(`pay/${y}`).onSnapshot(sn=>{ S.pays[y]= sn.exists?(clone(sn.data().rows)||[]):[]; normPays(); saveLS(); rerender(); },e=>console.warn("pay",e));
     DB.doc(`bank/${y}`).onSnapshot(sn=>{ S.bank[y]= sn.exists?(clone(sn.data().txns)||[]):[]; normBank(); saveLS(); rerender(); },e=>console.warn("bank",e));
     DB.doc(`inv/moves-${y}`).onSnapshot(sn=>{ S.invMoves[y]= sn.exists?(clone(sn.data().moves)||[]):[]; normMoves(); saveLS(); rerender(); },e=>console.warn("moves",e));
+    DB.doc(`adultpay/${y}`).onSnapshot(sn=>{ S.adultPay[y]= sn.exists?(clone(sn.data().rows)||[]):[]; saveLS(); rerender(); },e=>console.warn("adultpay",e));
   });
   subAttend(S.ui.ym);
   subCost(S.ui.ym);
@@ -628,6 +632,7 @@ function attHistModal(ym){
 async function pushPays(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`pay/${y}`).set({rows:payY(y)}); }catch(e){ toast("儲存失敗（收款）","bad"); } }
 async function pushBank(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`bank/${y}`).set({txns:bankY(y)}); }catch(e){ toast("儲存失敗（銀行）","bad"); } }
 async function pushMoves(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`inv/moves-${y}`).set({moves:moveY(y)}); }catch(e){ toast("儲存失敗（進銷存）","bad"); } }
+async function pushAdultPay(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`adultpay/${y}`).set({rows:adultPayY(y)}); }catch(e){ toast("儲存失敗（成人之夜收款）","bad"); } }
 
 /* ===================================================== computed */
 function monthDates(ym){
@@ -686,11 +691,30 @@ function monthCollected(ym){
   allPays().forEach(p=>(p.allocs||[]).forEach(a=>{ if(a.ym===ym) sum+=num(a.amount); }));
   return sum;
 }
+/* 成人之夜現場收款：某月 / 某周（依日期精確歸屬，不用估算分攤）*/
+function monthAdultCollected(ym){
+  return allAdultPay().filter(r=>String(r.date||"").slice(0,7)===ym).reduce((a,r)=>a+num(r.amount),0);
+}
+function weekAdultRevenue(dates){
+  const set=new Set(dates);
+  return allAdultPay().filter(r=>set.has(r.date)).reduce((a,r)=>a+num(r.amount),0);
+}
 function wdOf(dateStr){ const [y,m,d]=dateStr.split("-").map(Number); return new Date(y,m-1,d).getDay(); }
 function sessionsFor(dateStr){ return S.settings.price[String(wdOf(dateStr))]||[]; }
 /* 一組日期共有幾「場」（每天的場次數相加，非天數）*/
 function sessionCount(dates){ return dates.reduce((a,d)=>a+sessionsFor(d).length,0); }
 function priceOf(dateStr,slot){ const ss=sessionsFor(dateStr); return ss[slot]?num(ss[slot].price):0; }
+/* 成人之夜現場收款：目前價目表單價、最近一個週三（預設登記日期）*/
+function adultNightPrice(){
+  const arr=(S.settings.price&&S.settings.price["3"])||[];
+  const it=arr.find(x=>/成人之夜/.test(x.label||""));
+  return it?num(it.price):600;
+}
+function lastWednesday(){
+  const d=new Date(); const diff=(d.getDay()-3+7)%7;
+  d.setDate(d.getDate()-diff);
+  return d.toISOString().slice(0,10);
+}
 function cellKey(sid,date){ return sid+"|"+date; }
 function cellEntries(ym,sid,date){ return (attM(ym).cells[cellKey(sid,date)])||[]; }
 /* 場次顯示名稱：優先用價目表的「場次名稱」，若是通用的「第N場」且舊資料有班別就顯示班別 */
@@ -753,15 +777,21 @@ function studentPaid(ym,sid){
   });
   return {logged,bank};
 }
-/* 該月「待核對」的收款（不含現金、還沒核對／核銷），依分配到該月的金額算 */
+/* 該月「待核對」的收款（不含現金、還沒核對／核銷）：課程收款＋成人之夜現場收款一起列 */
 function pendingPaysFor(ym){
   const list=[];
   allPays().forEach(p=>{
     if(p.cash || p.matchTxnId || p.bankPaid) return;
     const amt=(p.allocs||[]).filter(a=>a.ym===ym).reduce((s,a)=>s+num(a.amount),0);
-    if(amt>0) list.push({p,amt});
+    if(amt>0) list.push({kind:"pay",id:p.id,date:p.date,label:p.payer||studentNames(p)||"—",last5:p.last5||"",amt});
   });
-  return list.sort((a,b)=>String(b.p.date||"").localeCompare(String(a.p.date||"")));
+  allAdultPay().forEach(r=>{
+    if(r.matchTxnId || r.bankPaid) return;
+    if(String(r.date||"").slice(0,7)!==ym) return;
+    const amt=num(r.amount); if(amt<=0) return;
+    list.push({kind:"adult",id:r.id,date:r.date,label:`成人之夜 · ${num(r.count)} 人`,last5:"",amt});
+  });
+  return list.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
 }
 function monthRoster(ym){
   // 學員：本月報名表出現過的 + 名冊 active
@@ -972,7 +1002,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23f";
+const APP_BUILD="2026-09-23g";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1048,6 +1078,7 @@ function viewStudents(){
     </div>
     ${rt==='kids'?kidsRoster():adultRoster()}
   </div>
+  ${rt==='adult'?viewAdultPay():""}
   <p class="hint">${rt==='kids'
     ? '勾選左側方框可複選，右上「刪除選取」批量刪除。點任一列展開看完整資料，「明細」看繳費紀錄。匯入欄位可對應：學員名字 / 家長名字 / 家長電話 / 學員生日 / 手機號碼 / Gmail / 匯款後五碼 / 備註（依姓名更新既有學員）。'
     : '勾選左側方框可複選，右上「刪除選取」批量刪除。成人之夜球員與課程報名／應收分開管理，這裡只是聯絡名冊。匯入欄位可對應：姓名 / 電話 / 生日 / 匯款後五碼 / 備註（依姓名更新既有）。'}</p>`;
@@ -1104,6 +1135,76 @@ function adultRoster(){
     </div>`;
   }).join("")}</div></div>`;
 }
+function viewAdultPay(){
+  const rows=allAdultPay().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  return `<div class="panel">
+    <div class="ph"><h3>現場收款登記（週三 · 成人之夜 $${fmt(adultNightPrice())}/人）</h3><div class="grow"></div>
+      <button class="btn primary sm" data-act="add-adultpay">＋ 登記本週收款</button></div>
+    ${!rows.length?`<div class="empty"><div class="big">🌙</div>還沒有登記。每週三現場收現金後，隔天存入銀行前先按「＋ 登記本週收款」記錄人數。</div>`
+    :`<div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>日期</th><th class="num">人數</th><th class="num">單價</th><th class="num">金額</th><th>對帳</th><th>登記人</th><th></th></tr></thead>
+      <tbody>${rows.map(r=>{
+        const tip=esc(reconTip(r));
+        const st = r.matchTxnId ? `<span class="chip ok" title="${tip}"><span class="dot"></span>已核對</span>`
+          : r.bankPaid ? `<span class="chip ok" title="${tip}">已核對</span>`
+          : `<span class="chip warn" title="${tip}"><span class="dot"></span>待核對</span>`;
+        return `<tr>
+          <td class="nowrap">${esc(r.date||"")}</td>
+          <td class="num">${fmt(r.count)}</td>
+          <td class="num">${fmt(r.price)}</td>
+          <td class="num"><b>${fmt(r.amount)}</b></td>
+          <td>${st}${isMgr()?(r.matchTxnId?"":r.bankPaid?`<button class="btn sm ghost" data-unmark-paid="adult:${r.id}" style="margin-left:6px">取消</button>`:`<button class="btn sm primary" data-mark-paid="adult:${r.id}" style="margin-left:6px">✓核銷</button>`):""}</td>
+          <td class="hint">${esc(r.by||"")}</td>
+          <td class="right nowrap"><button class="btn sm ghost" data-edit-adultpay="${r.id}">編輯</button>
+            <button class="btn sm danger" data-del-adultpay="${r.id}">刪</button></td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table></div>`}
+  </div>`;
+}
+function adultPayModal(id){
+  let r=id?allAdultPay().find(x=>x.id===id):null;
+  const editing=!!r;
+  if(!r) r={id:uid(),date:lastWednesday(),count:0,price:adultNightPrice(),amount:0,note:""};
+  else r=clone(r);
+  const s=scrim(`
+   <div class="mh"><h3>${editing?"編輯":"登記"}成人之夜現場收款</h3><button class="x" data-x>×</button></div>
+   <div class="mb">
+     <div class="grid2">
+       <div class="field"><label>日期（週三）</label><input class="txt" id="ap-date" type="date" value="${esc(r.date)}"></div>
+       <div class="field"><label>單價</label><input class="txt num" id="ap-price" type="number" min="0" value="${r.price||0}"></div>
+     </div>
+     <div class="grid2">
+       <div class="field"><label>人數</label><input class="txt num" id="ap-count" type="number" min="0" value="${r.count||""}"></div>
+       <div class="field"><label>金額（人數 × 單價）</label><input class="txt num" id="ap-amount" type="number" value="${r.amount||0}" readonly style="background:var(--surface-2)"></div>
+     </div>
+     <div class="field"><label>備註</label><input class="txt" id="ap-note" value="${esc(r.note||"")}" placeholder="例：收款人員、特殊狀況"></div>
+   </div>
+   <div class="mf">${editing?`<button class="btn danger ghost" id="ap-del">刪除</button>`:""}
+     <button class="btn ghost" data-x>取消</button><button class="btn primary" id="ap-save">儲存</button></div>`);
+  function recalc(){ const c=num($("#ap-count",s).value), p=num($("#ap-price",s).value); $("#ap-amount",s).value=c*p; }
+  recalc();
+  s.addEventListener("input",e=>{ if(e.target.id==="ap-count"||e.target.id==="ap-price") recalc(); });
+  if(editing) $("#ap-del",s).onclick=()=>{
+    confirmModal("刪除這筆成人之夜收款登記？此動作無法復原。",()=>{
+      const y=String(r.date||today()).slice(0,4);
+      S.adultPay[y]=(S.adultPay[y]||[]).filter(x=>x.id!==r.id);
+      closeScrim(s); pushAdultPay(y); toast("已刪除","ok");
+    });
+  };
+  $("#ap-save",s).onclick=()=>{
+    const date=$("#ap-date",s).value||today();
+    const count=num($("#ap-count",s).value), price=num($("#ap-price",s).value);
+    if(count<=0){ toast("請填人數","bad"); return; }
+    const rec={ id:r.id, date, count, price, amount:count*price, note:$("#ap-note",s).value.trim(),
+      by:r.by||OP||"", createdAt:r.createdAt||new Date().toISOString(),
+      matchTxnId:r.matchTxnId||null, matchDate:r.matchDate||null, matchBy:r.matchBy||null, bankPaid:r.bankPaid||false };
+    Object.keys(S.adultPay).forEach(y=>{ S.adultPay[y]=(S.adultPay[y]||[]).filter(x=>x.id!==rec.id); });
+    const y=date.slice(0,4);
+    adultPayY(y).push(rec);
+    closeScrim(s); pushAdultPay(y); toast("已儲存","ok");
+  };
+}
 
 /* ---------------- overview ---------------- */
 function viewOverview(){
@@ -1117,6 +1218,11 @@ function viewOverview(){
   const owe=roster.filter(s=>{ const d=studentDue(ym,s.id).amount, p=studentPaid(ym,s.id).logged; return d-p>TOL; });
   const pending=pendingPaysFor(ym);
   const pendingAmt=pending.reduce((a,x)=>a+x.amt,0);
+  const adultRows=allAdultPay().filter(r=>String(r.date||"").slice(0,7)===ym);
+  const adultCount=adultRows.reduce((a,r)=>a+num(r.count),0);
+  const adultRev=monthAdultCollected(ym);
+  const adultPending=pending.filter(x=>x.kind==="adult");
+  const adultPendingAmt=adultPending.reduce((a,x)=>a+x.amt,0);
   const st=stock();
   const stItems=Object.values(st);
   const totalLeft=stItems.reduce((a,r)=>a+r.left,0);
@@ -1161,15 +1267,25 @@ function viewOverview(){
       <div class="grow"></div>
       <button class="btn sm" data-tab="pay">前往收款登錄 →</button></div>
     ${pendingPayOpen?`<div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>日期</th><th>繳款人</th><th class="num">本月金額</th><th>後五碼</th><th></th></tr></thead>
-      <tbody>${pending.map(({p,amt})=>`<tr>
-          <td class="nowrap">${esc(p.date||"")}</td>
-          <td>${esc(p.payer||studentNames(p)||"—")}</td>
-          <td class="num">${fmt(amt)}</td>
-          <td class="hint">${esc(p.last5||"—")}</td>
-          <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="pay:${p.id}">✓ 核銷</button>`:""}</td>
+      <thead><tr><th>日期</th><th>項目 / 繳款人</th><th class="num">本月金額</th><th>後五碼</th><th></th></tr></thead>
+      <tbody>${pending.map(x=>`<tr>
+          <td class="nowrap">${esc(x.date||"")}</td>
+          <td>${esc(x.label)}</td>
+          <td class="num">${fmt(x.amt)}</td>
+          <td class="hint">${esc(x.last5||"—")}</td>
+          <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="${x.kind}:${x.id}">✓ 核銷</button>`:""}</td>
         </tr>`).join("")||`<tr><td colspan="5" class="empty">本月沒有待核對的收款</td></tr>`}</tbody>
     </table></div></div>`:""}
+  </div>
+
+  <h3 style="margin:22px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:16px">成人之夜（現場收款） · ${esc(ymLabel(ym))}</h3>
+  <div class="cards">
+    <div class="card"><div class="k">本月人次</div><div class="v">${fmt(adultCount)} 人次</div><div class="sub">${adultRows.length} 個場次</div></div>
+    <div class="card"><div class="k">本月收款</div><div class="v">${fmt(adultRev)}</div><div class="sub">現場收現金，隔日存入銀行</div></div>
+    <div class="card ${adultPending.length?'':'accent'}"><div class="k">尚未核對</div><div class="v ${adultPending.length?'neg':'pos'}">${fmt(adultPendingAmt)}</div><div class="sub">${adultPending.length?adultPending.length+" 筆":"全數已核對"}</div></div>
+  </div>
+  <div class="btnrow" style="margin-bottom:14px">
+    <button class="btn sm" data-tab="students">前往「學員資料 → 成人之夜球員」登記 →</button>
   </div>
 
   <h3 style="margin:22px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted);border-top:1px solid var(--line);padding-top:16px">裝備銷售 · ${iy} 年</h3>
@@ -1656,11 +1772,14 @@ function viewPnl(){
   subCost(ym);
   const weeks=monthWeeks(ym);
   const mGross=monthRevenueGross(ym);        // 報名 × 價目表（原價，僅作分攤基準／參考）
-  const mRev=monthCollected(ym);             // 課程收入＝該月實際收款
+  const mRevCourse=monthCollected(ym);       // 課程收入＝該月實際收款
+  const mRevAdult=monthAdultCollected(ym);   // 成人之夜現場收款（依日期精確算，不用估算）
+  const mRev=mRevCourse+mRevAdult;           // 總收入
   const mCost=monthCostTotal(ym);
   const mNet=mRev-mCost;
-  // 收款為整月結算、無法歸到單周 → 依各周原價占比把實收金額分攤到各周
-  const weekColl=w=>mGross>0?Math.round(mRev*weekRevenue(ym,w.dates)/mGross):0;
+  // 課程收款為整月結算、無法歸到單周 → 依各周原價占比把實收金額分攤到各周；成人之夜有明確日期，直接歸周
+  const weekColl=w=>mGross>0?Math.round(mRevCourse*weekRevenue(ym,w.dates)/mGross):0;
+  const weekAdult=w=>weekAdultRevenue(w.dates);
   const cat=monthCatTotals(ym);
   const mi=monthlyCostItems(ym);
 
@@ -1698,15 +1817,17 @@ function viewPnl(){
       </tbody>
       <tfoot class="tfoot">
         <tr><td>變動成本合計</td>${weeks.map(w=>`<td class="num">${fmt(weekCostTotal(ym,w.monday))}</td>`).join("")}<td class="num">${fmt(weeklyCostSum)}</td></tr>
-        <tr><td>課程收入（實收·分攤）</td>${weeks.map(w=>`<td class="num">${fmt(weekColl(w))}</td>`).join("")}<td class="num">${fmt(mRev)}</td></tr>
-        <tr><td><b>收入 − 變動成本</b></td>${weeks.map(w=>{ const n=weekColl(w)-weekCostTotal(ym,w.monday); return `<td class="num"><b class="${n>=0?'okp':'badp'}">${fmt(n)}</b></td>`; }).join("")}<td class="num"><b class="${mRev-weeklyCostSum>=0?'okp':'badp'}">${fmt(mRev-weeklyCostSum)}</b></td></tr>
+        <tr><td>課程收入（實收·分攤）</td>${weeks.map(w=>`<td class="num">${fmt(weekColl(w))}</td>`).join("")}<td class="num">${fmt(mRevCourse)}</td></tr>
+        <tr><td>成人之夜收入（實收）</td>${weeks.map(w=>`<td class="num">${fmt(weekAdult(w))}</td>`).join("")}<td class="num">${fmt(mRevAdult)}</td></tr>
+        <tr><td><b>收入 − 變動成本</b></td>${weeks.map(w=>{ const n=weekColl(w)+weekAdult(w)-weekCostTotal(ym,w.monday); return `<td class="num"><b class="${n>=0?'okp':'badp'}">${fmt(n)}</b></td>`; }).join("")}<td class="num"><b class="${mRev-weeklyCostSum>=0?'okp':'badp'}">${fmt(mRev-weeklyCostSum)}</b></td></tr>
       </tfoot>
     </table></div></div>
   </div>`:`<div class="panel"><div class="empty">本月沒有上課日。到「課程報名 → 🗓 上課日」設定。</div></div>`;
 
   return `
   <div class="cards">
-    <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRev)}</div><div class="sub">實際收款（收款登錄，含現金＋匯款）· 原價 ${fmt(mGross)}</div></div>
+    <div class="card"><div class="k">${esc(ymLabel(ym))} 課程收入</div><div class="v">${fmt(mRevCourse)}</div><div class="sub">實際收款（收款登錄，含現金＋匯款）· 原價 ${fmt(mGross)}</div></div>
+    <div class="card"><div class="k">成人之夜收入</div><div class="v">${fmt(mRevAdult)}</div><div class="sub">現場收現金，隔日存入銀行</div></div>
     <div class="card"><div class="k">成本合計</div><div class="v">${fmt(mCost)}</div><div class="sub">固定 ${fmt(monthlyCostTotal(ym))} ＋ 變動 ${fmt(mCost-monthlyCostTotal(ym))}</div></div>
     <div class="card accent"><div class="k">本月淨利</div><div class="v ${mNet>=0?'pos':'neg'}">${fmt(mNet)}</div></div>
   </div>
@@ -1731,8 +1852,10 @@ function viewPnl(){
     <div class="pb flush"><div class="tw"><table>
       <thead><tr><th>項目</th><th class="num">全月金額</th></tr></thead>
       <tbody>
-        <tr><td>課程收入（實際收款）</td><td class="num">${fmt(mRev)}</td></tr>
+        <tr><td>課程收入（實際收款）</td><td class="num">${fmt(mRevCourse)}</td></tr>
         <tr><td class="hint">　參考：課程原價（未扣折扣）</td><td class="num hint">${fmt(mGross)}</td></tr>
+        <tr><td>成人之夜收入（現場收款）</td><td class="num">${fmt(mRevAdult)}</td></tr>
+        <tr><td><b>收入合計</b></td><td class="num"><b>${fmt(mRev)}</b></td></tr>
         ${COST_CATS.map(c=>`<tr><td class="hint">－ ${c[1]}</td><td class="num">${fmt(cat[c[0]]||0)}</td></tr>`).join("")}
       </tbody>
       <tfoot class="tfoot">
@@ -1741,8 +1864,8 @@ function viewPnl(){
       </tfoot>
     </table></div></div>
   </div>`:""}
-  <p class="hint">「課程收入」＝該月「收款登錄」實際收到的款項（含現金＋匯款，已反映折扣與少繳）；原價僅列為參考。<br>
-  收款是整月結算，各周欄位是依原價占比分攤估算。固定成本（冰場冰時費用、固定人事成本）每月填一次；變動成本（其餘 6 類）按周填。只有管理者看得到、可編輯。</p>`;
+  <p class="hint">「課程收入」＝該月「收款登錄」實際收到的款項（含現金＋匯款，已反映折扣與少繳）；原價僅列為參考。「成人之夜收入」＝「學員資料 → 成人之夜球員 → 現場收款登記」登記的金額（不論當筆是否已核對，跟課程收入定義一致）。<br>
+  課程收款是整月結算，各周欄位是依原價占比分攤估算；成人之夜每筆都有明確日期，直接歸到當周，不用估算。固定成本（冰場冰時費用、固定人事成本）每月填一次；變動成本（其餘 6 類）按周填。只有管理者看得到、可編輯。</p>`;
 }
 
 /* ---------------- bank reconcile (manager) — side: "pay"=課程 / "sale"=裝備 ---------------- */
@@ -1965,17 +2088,29 @@ function bankPayModal(txnId){
   };
 }
 
+function findReconRec(kind,id){
+  return kind==="pay" ? allPays().find(x=>x.id===id)
+    : kind==="adult" ? allAdultPay().find(x=>x.id===id)
+    : allMoves().find(x=>x.id===id);
+}
+function pushReconKind(kind){
+  if(kind==="pay") return INV_YEARS().forEach(pushPays);
+  if(kind==="adult") return INV_YEARS().forEach(pushAdultPay);
+  return INV_YEARS().forEach(pushMoves);
+}
 /* 手動核銷：不匯入銀行明細，直接標記某筆收款/銷售「銀行已到帳」*/
 function markPaidModal(arg){
   const [kind,id]=String(arg).split(":");
-  const rec = kind==="pay" ? allPays().find(x=>x.id===id) : allMoves().find(x=>x.id===id);
+  const rec = findReconRec(kind,id);
   if(!rec) return;
-  const label = kind==="pay" ? (rec.payer||studentNames(rec)||"課程費") : ((rec.buyer?rec.buyer+" · ":"")+itemName(rec.itemId)+" ×"+num(rec.qty));
-  const amt = kind==="pay" ? num(rec.amount) : num(rec.price)*num(rec.qty);
+  const label = kind==="pay" ? (rec.payer||studentNames(rec)||"課程費")
+    : kind==="adult" ? `成人之夜 · ${num(rec.count)} 人`
+    : ((rec.buyer?rec.buyer+" · ":"")+itemName(rec.itemId)+" ×"+num(rec.qty));
+  const amt = kind==="pay"||kind==="adult" ? num(rec.amount) : num(rec.price)*num(rec.qty);
   const s=scrim(`
    <div class="mh"><h3>手動核銷 ${fmt(amt)}</h3><button class="x" data-x>×</button></div>
    <div class="mb">
-     <p class="hint">${esc(label)}　·　後五碼 ${esc(rec.last5||"—")}</p>
+     <p class="hint">${esc(label)}${kind==="adult"?"":`　·　後五碼 ${esc(rec.last5||"—")}`}</p>
      <div class="field"><label>銀行入帳日期</label><input class="txt" id="mp-date" type="date" value="${esc(rec.matchDate||today())}"></div>
      <p class="hint">確認你已在銀行查到這筆入帳。核銷後這筆在「應收對帳」會計入「銀行核對」，但不會有銀行明細列可對差額。</p>
    </div>
@@ -1983,17 +2118,17 @@ function markPaidModal(arg){
   $("#mp-ok",s).onclick=()=>{
     rec.bankPaid=true; rec.matchDate=$("#mp-date",s).value||today(); rec.matchTxnId=null; rec.matchBy=OP||"";
     closeScrim(s);
-    if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
+    pushReconKind(kind);
     toast("已核銷","ok");
   };
 }
 function unmarkPaid(arg){
   const [kind,id]=String(arg).split(":");
-  const rec = kind==="pay" ? allPays().find(x=>x.id===id) : allMoves().find(x=>x.id===id);
+  const rec = findReconRec(kind,id);
   if(!rec) return;
   confirmModal("取消這筆的手動核銷？會回到「尚未對到銀行」。",()=>{
     rec.bankPaid=false; rec.matchDate=null; rec.matchBy=null;
-    if(kind==="pay") INV_YEARS().forEach(pushPays); else INV_YEARS().forEach(pushMoves);
+    pushReconKind(kind);
     toast("已取消核銷","ok");
   });
 }
@@ -2725,13 +2860,14 @@ document.addEventListener("click",e=>{
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
-  const t=e.target.closest("[data-act],[data-edit-student],[data-del-student],[data-edit-adult],[data-del-adult],[data-edit-pay],[data-del-pay],[data-edit-item],[data-edit-move],[data-del-move],[data-assign],[data-bankpay],[data-mark-paid],[data-unmark-paid],[data-ignore],[data-del-cls]");
+  const t=e.target.closest("[data-act],[data-edit-student],[data-del-student],[data-edit-adult],[data-del-adult],[data-edit-adultpay],[data-del-adultpay],[data-edit-pay],[data-del-pay],[data-edit-item],[data-edit-move],[data-del-move],[data-assign],[data-bankpay],[data-mark-paid],[data-unmark-paid],[data-ignore],[data-del-cls]");
   if(!t) return;
   const d=t.dataset;
   if(d.act==="add-student") studentEditModal();
   else if(d.act==="import-students") importModal("students");
   else if(d.act==="add-adult") adultEditModal();
   else if(d.act==="import-adults") importModal("adults");
+  else if(d.act==="add-adultpay") adultPayModal();
   else if(d.act==="edit-dates") editDatesModal();
   else if(d.act==="att-hist") attHistModal(S.ui.ym);
   else if(d.act==="add-pay") payModal();
@@ -2763,6 +2899,10 @@ document.addEventListener("click",e=>{
   else if(d.editAdult) adultEditModal(d.editAdult);
   else if(d.delAdult){ const a=S.adults.find(x=>x.id===d.delAdult);
     confirmModal(`刪除成人之夜球員「${a?.name}」？`,()=>{ S.adults=S.adults.filter(x=>x.id!==d.delAdult); pushAdults(); toast("已刪除","ok"); }); }
+  else if(d.editAdultpay) adultPayModal(d.editAdultpay);
+  else if(d.delAdultpay){ confirmModal("刪除這筆成人之夜收款登記？此動作無法復原。",()=>{
+      Object.keys(S.adultPay).forEach(y=>{ S.adultPay[y]=(S.adultPay[y]||[]).filter(x=>x.id!==d.delAdultpay); });
+      INV_YEARS().forEach(pushAdultPay); toast("已刪除","ok"); }); }
   else if(d.act==="del-roster-sel"){ const ids=[...stuSel]; if(!ids.length) return;
     const rt=S.ui.rosterTab==="adult"?"adult":"kids", label=rt==="kids"?"學員":"成人之夜球員";
     confirmModal(`刪除選取的 ${ids.length} 位${label}？此動作無法復原。`,()=>{
@@ -2839,14 +2979,14 @@ document.addEventListener("click",e=>{
   if(e.target.id==="set-op-save"){ setOp($("#set-op").value); rerender(); toast("已儲存","ok"); }
   if(e.target.id==="wipe"){
     confirmModal("確定清空全部資料？此動作無法復原。",async()=>{
-      S.settings=defaultSettings(); S.students=[]; S.adults=[]; S.attend={}; S.pays={}; S.bank={}; S.invItems=[]; S.invMoves={}; S.cost={};
+      S.settings=defaultSettings(); S.students=[]; S.adults=[]; S.attend={}; S.pays={}; S.bank={}; S.adultPay={}; S.invItems=[]; S.invMoves={}; S.cost={};
       saveLS();
       if(DB){ try{
         await DB.doc("config/settings").set(clone(S.settings));
         await DB.doc("roster/students").set({students:[]});
         await DB.doc("roster/adults").set({adults:[]});
         await DB.doc("inv/items").set({items:[]});
-        for(const y of INV_YEARS()){ await DB.doc(`pay/${y}`).set({rows:[]}); await DB.doc(`bank/${y}`).set({txns:[]}); await DB.doc(`inv/moves-${y}`).set({moves:[]}); }
+        for(const y of INV_YEARS()){ await DB.doc(`pay/${y}`).set({rows:[]}); await DB.doc(`bank/${y}`).set({txns:[]}); await DB.doc(`inv/moves-${y}`).set({moves:[]}); await DB.doc(`adultpay/${y}`).set({rows:[]}); }
       }catch(err){ console.warn(err); } }
       rerender(); toast("已清空","ok");
     });
