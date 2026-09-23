@@ -454,6 +454,7 @@ let oweOpen=false;      // 總覽「本月欠款清單」是否展開
 let stockOpen=false;    // 進銷存「北屯裝備結存」是否展開
 let attDueOpen=true;    // 課程報名「課程應收」是否展開（預設開）
 let bankOrphanOpen=false; // 對帳頁「無對應收款」入帳清單是否展開
+let pendingPayOpen=false; // 總覽「本月待核對收款」清單是否展開
 let stuOpen=new Set();   // 學員資料 / 成人之夜球員：展開的列
 let stuSel=new Set();    // 學員資料 / 成人之夜球員：批量選取
 const attPrev={};        // ym -> 上次同步後的 {cells,dates}（給「復原」用的基準）
@@ -751,6 +752,16 @@ function studentPaid(ym,sid){
   });
   return {logged,bank};
 }
+/* 該月「待核對」的收款（不含現金、還沒核對／核銷），依分配到該月的金額算 */
+function pendingPaysFor(ym){
+  const list=[];
+  allPays().forEach(p=>{
+    if(p.cash || p.matchTxnId || p.bankPaid) return;
+    const amt=(p.allocs||[]).filter(a=>a.ym===ym).reduce((s,a)=>s+num(a.amount),0);
+    if(amt>0) list.push({p,amt});
+  });
+  return list.sort((a,b)=>String(b.p.date||"").localeCompare(String(a.p.date||"")));
+}
 function monthRoster(ym){
   // 學員：本月報名表出現過的 + 名冊 active
   const ids=new Set();
@@ -960,7 +971,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23d";
+const APP_BUILD="2026-09-23e";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1088,6 +1099,8 @@ function viewOverview(){
     due+=d.amount; logged+=p.logged; bank+=p.bank; ns+=d.sessions;
   });
   const owe=roster.filter(s=>{ const d=studentDue(ym,s.id).amount, p=studentPaid(ym,s.id).logged; return d-p>TOL; });
+  const pending=pendingPaysFor(ym);
+  const pendingAmt=pending.reduce((a,x)=>a+x.amt,0);
   const st=stock();
   const stItems=Object.values(st);
   const totalLeft=stItems.reduce((a,r)=>a+r.left,0);
@@ -1103,6 +1116,7 @@ function viewOverview(){
     <div class="card"><div class="k">本月已收（業務登錄）</div><div class="v">${fmt(logged)}</div><div class="sub">尚缺 ${fmt(due-logged)}</div></div>
     <div class="card"><div class="k">本月銀行已核對</div><div class="v">${fmt(bank)}</div><div class="sub">已登未核 ${fmt(logged-bank)}</div></div>
     <div class="card ${owe.length?'':'accent'}"><div class="k">本月欠款</div><div class="v ${owe.length?'neg':'pos'}">${owe.length} 人</div><div class="sub">${owe.length?"共 "+fmt(owe.reduce((a,s)=>a+(studentDue(ym,s.id).amount-studentPaid(ym,s.id).logged),0)):"全數收齊"}</div></div>
+    <div class="card ${pending.length?'':'accent'}"><div class="k">本月待核對收款</div><div class="v ${pending.length?'neg':'pos'}">${fmt(pendingAmt)}</div><div class="sub">${pending.length?pending.length+" 筆待核對／核銷":"全數已核對"}</div></div>
   </div>
   <div class="panel">
     <div class="ph" data-toggle-owe style="cursor:pointer">
@@ -1122,6 +1136,23 @@ function viewOverview(){
           <td class="num badp">${fmt(d.amount-p.logged)}</td>
           <td class="num">${d.sessions}</td></tr>`;
       }).join("")||`<tr><td colspan="5" class="empty">本月沒有欠款</td></tr>`}</tbody>
+    </table></div></div>`:""}
+  </div>
+  <div class="panel">
+    <div class="ph" data-toggle-pendingpay style="cursor:pointer">
+      <h3>${pendingPayOpen?"▾":"▸"} 本月待核對收款</h3>
+      <span class="chip ${pending.length?'warn':'ok'}">${pending.length?pending.length+" 筆 · "+fmt(pendingAmt):"全數已核對"}</span>
+      <div class="grow"></div>
+      <button class="btn sm" data-tab="pay">前往收款登錄 →</button></div>
+    ${pendingPayOpen?`<div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>日期</th><th>繳款人</th><th class="num">本月金額</th><th>後五碼</th><th></th></tr></thead>
+      <tbody>${pending.map(({p,amt})=>`<tr>
+          <td class="nowrap">${esc(p.date||"")}</td>
+          <td>${esc(p.payer||studentNames(p)||"—")}</td>
+          <td class="num">${fmt(amt)}</td>
+          <td class="hint">${esc(p.last5||"—")}</td>
+          <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="pay:${p.id}">✓ 核銷</button>`:""}</td>
+        </tr>`).join("")||`<tr><td colspan="5" class="empty">本月沒有待核對的收款</td></tr>`}</tbody>
     </table></div></div>`:""}
   </div>
 
@@ -2674,6 +2705,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-stock]") && !e.target.closest("button")){ stockOpen=!stockOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-attdue]") && !e.target.closest("button")){ attDueOpen=!attDueOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
+  if(e.target.closest("[data-toggle-pendingpay]") && !e.target.closest("button")){ pendingPayOpen=!pendingPayOpen; rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
