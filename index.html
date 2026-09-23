@@ -944,7 +944,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-23b";
+const APP_BUILD="2026-09-23c";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -2383,8 +2383,8 @@ async function readXlsx(file){
 }
 function importModal(kind){
   const titles={students:"匯入學員名單",adults:"匯入成人之夜球員名單",bank:"匯入玉山銀行交易明細",inv:"批量匯入：調入北屯"};
-  const ph = kind==="students" ? "姓名\t備註\n王小明\t平日基礎"
-    : kind==="adults" ? "姓名\t電話\t生日\t後五碼\t備註\n陳大明\t0912345678\t1988-05-01\t12345\t"
+  const ph = kind==="students" ? "姓名\t學員生日\t備註\n王小明\t2015/03/20\t平日基礎"
+    : kind==="adults" ? "姓名\t電話\t生日\t後五碼\t備註\n陳大明\t0912345678\t1988/05/01\t12345\t"
     : kind==="inv" ? "品項\t數量\t備註\n冰刀\t10\t\n護具\t5\t\n隊服\t20\t新款"
     : "";
   const s=scrim(`
