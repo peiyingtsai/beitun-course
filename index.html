@@ -766,17 +766,19 @@ function studentDue(ym,sid){
 }
 /* 學員該月已收 / 已核對（由收款登錄的分配算，跨年度找）*/
 function studentPaid(ym,sid){
-  let logged=0, bank=0;
+  // bank＝已核對：匯款已對到銀行／手動核銷，或現金已由管理者確認收訖；cashPend＝現金尚待確認
+  let logged=0, bank=0, cashPend=0;
   allPays().forEach(p=>{
     (p.allocs||[]).forEach(a=>{
       if(a.sid===sid && a.ym===ym){
         const amt=num(a.amount);
         logged+=amt;
-        if(!p.cash && (p.matchTxnId||p.bankPaid)) bank+=amt;
+        if(p.matchTxnId||p.bankPaid) bank+=amt;
+        else if(p.cash) cashPend+=amt;
       }
     });
   });
-  return {logged,bank};
+  return {logged,bank,cashPend};
 }
 /* 該月「待核對／待確認」的收款（含現金待確認，還沒核對／核銷）：課程收款＋成人之夜現場收款一起列 */
 function pendingPaysFor(ym){
@@ -784,7 +786,7 @@ function pendingPaysFor(ym){
   allPays().forEach(p=>{
     if(p.matchTxnId || p.bankPaid) return;
     const amt=(p.allocs||[]).filter(a=>a.ym===ym).reduce((s,a)=>s+num(a.amount),0);
-    if(amt>0) list.push({kind:"pay",id:p.id,date:p.date,label:(p.payer||studentNames(p)||"—")+(p.cash?"（現金）":""),last5:p.cash?"":(p.last5||""),amt});
+    if(amt>0) list.push({kind:"pay",id:p.id,date:p.date,label:(p.payer||studentNames(p)||"—")+(p.cash?"（現金）":""),last5:p.cash?"":(p.last5||""),amt,cash:!!p.cash});
   });
   allAdultPay().forEach(r=>{
     if(r.matchTxnId || r.bankPaid) return;
@@ -1002,7 +1004,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-09-24a";
+const APP_BUILD="2026-10-02a";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1235,7 +1237,7 @@ function viewOverview(){
   <div class="cards">
     <div class="card"><div class="k">本月應收（報名）</div><div class="v">${fmt(due)}</div><div class="sub">${roster.length} 位學員 · ${ns} 堂</div></div>
     <div class="card"><div class="k">本月已收（業務登錄）</div><div class="v">${fmt(logged)}</div><div class="sub">尚缺 ${fmt(due-logged)}</div></div>
-    <div class="card"><div class="k">本月銀行已核對</div><div class="v">${fmt(bank)}</div><div class="sub">已登未核 ${fmt(logged-bank)}</div></div>
+    <div class="card"><div class="k">本月已核對（銀行＋現金）</div><div class="v">${fmt(bank)}</div><div class="sub">已登未核 ${fmt(logged-bank)}</div></div>
     <div class="card ${owe.length?'':'accent'}"><div class="k">本月欠款</div><div class="v ${owe.length?'neg':'pos'}">${owe.length} 人</div><div class="sub">${owe.length?"共 "+fmt(owe.reduce((a,s)=>a+(studentDue(ym,s.id).amount-studentPaid(ym,s.id).logged),0)):"全數收齊"}</div></div>
     <div class="card ${pending.length?'':'accent'}"><div class="k">本月待核對收款</div><div class="v ${pending.length?'neg':'pos'}">${fmt(pendingAmt)}</div><div class="sub">${pending.length?pending.length+" 筆待核對／核銷":"全數已核對"}</div></div>
   </div>
@@ -1272,7 +1274,7 @@ function viewOverview(){
           <td>${esc(x.label)}</td>
           <td class="num">${fmt(x.amt)}</td>
           <td class="hint">${esc(x.last5||"—")}</td>
-          <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="${x.kind}:${x.id}">✓ 核銷</button>`:""}</td>
+          <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="${x.kind}:${x.id}">✓ ${x.cash?"確認現金":"核銷"}</button>`:""}</td>
         </tr>`).join("")||`<tr><td colspan="5" class="empty">本月沒有待核對的收款</td></tr>`}</tbody>
     </table></div></div>`:""}
   </div>
@@ -1664,7 +1666,7 @@ function viewDues(){
     let chip;
     if(d.amount===0 && p.logged===0) chip=`<span class="chip mut">—</span>`;
     else if(owe>TOL) chip=`<span class="chip bad"><span class="dot"></span>欠 ${fmtP(owe)}</span>`;
-    else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>待銀行核對</span>`;
+    else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>${p.cashPend>=unver-TOL?"現金待確認":p.cashPend>TOL?"待核對（含現金）":"待銀行核對"}</span>`;
     else chip=`<span class="chip ok"><span class="dot"></span>已收齊</span>`;
     const aj=studentAdj(ym,s.id);
     const ajCell = isMgr()
@@ -1679,23 +1681,35 @@ function viewDues(){
       <td class="num ${owe>TOL?'badp':''}">${fmt(owe)}</td>
       <td>${chip}</td></tr>`;
   }).join("");
+  const pend=pendingPaysFor(ym).filter(x=>x.kind==="pay");
   return `
   <div class="cards">
     <div class="card"><div class="k">應收合計</div><div class="v">${fmt(tDue)}</div></div>
     <div class="card"><div class="k">已收（業務登錄）</div><div class="v">${fmt(tLog)}</div><div class="sub">缺 ${fmt(tDue-tLog)}</div></div>
-    <div class="card"><div class="k">銀行已核對</div><div class="v">${fmt(tBank)}</div><div class="sub">已登未核 ${fmt(tLog-tBank)}</div></div>
+    <div class="card"><div class="k">已核對（銀行＋現金）</div><div class="v">${fmt(tBank)}</div><div class="sub">已登未核 ${fmt(tLog-tBank)}</div></div>
     <div class="card accent"><div class="k">未收</div><div class="v ${tDue-tLog>TOL?'neg':'pos'}">${fmt(tDue-tLog)}</div></div>
   </div>
+  ${pend.length?`<div class="panel">
+    <div class="ph"><h3>已登未核的收款（${pend.length}）</h3><span class="chip warn">${fmt(pend.reduce((a,x)=>a+x.amt,0))}</span><div class="grow"></div>
+      <span class="hint">${isMgr()?"現金按「✓ 確認現金」；匯款到「課程對帳」對銀行，或直接「✓ 核銷」":"需由管理者確認／核銷"}</span></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>日期</th><th>繳款人</th><th>方式</th><th class="num">本月金額</th><th></th></tr></thead>
+      <tbody>${pend.map(x=>`<tr>
+        <td class="nowrap">${esc(x.date||"")}</td><td>${esc(x.label)}</td>
+        <td>${x.cash?"現金":"匯款 "+esc(x.last5||"")}</td><td class="num">${fmt(x.amt)}</td>
+        <td class="right">${isMgr()?`<button class="btn sm primary" data-mark-paid="pay:${x.id}">✓ ${x.cash?"確認現金":"核銷"}</button>`:""}</td></tr>`).join("")}</tbody>
+    </table></div></div>
+  </div>`:""}
   <div class="panel">
     <div class="ph"><h3>${esc(ymLabel(ym))}　每位學員 應收 → 已收 → 核對</h3><div class="grow"></div>
       <button class="btn sm" data-act="export-dues">⬇ 匯出 CSV</button></div>
     <div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>學員</th><th class="num">堂數</th><th class="num">應收</th><th class="num">已收</th><th class="num">銀行核對</th><th class="num">未收</th><th>狀態</th></tr></thead>
+      <thead><tr><th>學員</th><th class="num">堂數</th><th class="num">應收</th><th class="num">已收</th><th class="num">已核對</th><th class="num">未收</th><th>狀態</th></tr></thead>
       <tbody>${rows||`<tr><td colspan="7" class="empty">本月沒有資料</td></tr>`}</tbody>
       <tfoot class="tfoot"><tr><td>合計（${roster.length} 位）</td><td class="num">${tSess}</td><td class="num">${fmt(tDue)}</td><td class="num">${fmt(tLog)}</td><td class="num">${fmt(tBank)}</td><td class="num">${fmt(tDue-tLog)}</td><td></td></tr></tfoot>
     </table></div></div>
   </div>
-  <p class="hint">「已收」＝業務在收款登錄填的金額；「銀行核對」＝該筆匯款已在銀行對帳勾稽。點學員看繳費明細。</p>`;
+  <p class="hint">「已收」＝業務在收款登錄填的金額；「已核對」＝匯款已在銀行對帳勾稽／核銷，或現金已由管理者確認收訖。點學員看繳費明細。</p>`;
 }
 function studentModal(sid){
   const s0=S.students.find(x=>x.id===sid); if(!s0) return;
@@ -1736,7 +1750,7 @@ function studentModal(sid){
        <tbody>${paysOf.map(p=>{
          const amt=p.allocs.filter(a=>a.sid===sid).reduce((x,a)=>x+num(a.amount),0);
          return `<tr><td>${esc(p.date)}</td><td>${p.cash?"現金":"匯款 "+esc(p.last5||"")}</td><td class="num">${fmt(amt)}</td>
-           <td>${p.cash?"—":(p.matchTxnId||p.bankPaid)?`<span class="chip ok" title="${esc(reconTip(p))}">已核對</span>`:`<span class="chip warn" title="${esc(reconTip(p))}">待對帳</span>`}</td></tr>`;
+           <td>${p.cash?(p.bankPaid?`<span class="chip ok" title="${esc(reconTip(p))}">現金已確認</span>`:`<span class="chip warn">現金待確認</span>`):(p.matchTxnId||p.bankPaid)?`<span class="chip ok" title="${esc(reconTip(p))}">已核對</span>`:`<span class="chip warn" title="${esc(reconTip(p))}">待對帳</span>`}</td></tr>`;
        }).join("")||`<tr><td colspan="4" class="hint">無</td></tr>`}</tbody></table></div>
    </div>
    <div class="mf"><button class="btn ghost" data-edit-student="${sid}">編輯學員</button><button class="btn primary" data-x>關閉</button></div>`,"wide");
@@ -1906,6 +1920,9 @@ function viewBankSide(side){
   const txnRows=actionTi.map(rowFor).join("");
   const openRecs=R.recInfo.filter(x=>x.st==="open" && x.rec.kind===side);
   const manRecs=R.recs.filter(r=>r.kind===side && r.ref.bankPaid && !r.matchTxnId);
+  // 現金收款不進銀行對帳，但在這裡讓管理者確認收訖
+  const cashRecs=side==="pay"?payY(y).filter(p=>p.cash).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))):[];
+  const cashOpen=cashRecs.filter(p=>!p.bankPaid);
   return `
   <div class="cards">
     <div class="card"><div class="k">${y} ${nm}應收帳款</div><div class="v">${fmt(K.recvTotal)}</div></div>
@@ -1948,7 +1965,17 @@ function viewBankSide(side){
       <tbody>${manRecs.map(r=>`<tr><td>${esc(r.ref.matchDate||"")}</td><td>${esc(r.label)}</td><td>${esc(r.last5||"—")}</td><td class="num">${fmt(r.amount)}</td>
         <td class="right"><button class="btn sm ghost" data-unmark-paid="${side}:${r.id}">取消核銷</button></td></tr>`).join("")}</tbody>
     </table></div></div></div>`:""}
-  <p class="hint">誤差容忍 ±${TOL} 元。現金不列入。同一筆匯款若含課程＋裝備，兩個分頁各對一部分（金額欄會標「另有${otherNm}…」）。<br>
+  ${cashRecs.length?`<div class="panel">
+    <div class="ph"><h3>現金收款確認（${cashRecs.length}）</h3>
+      <span class="chip ${cashOpen.length?'warn':'ok'}">${cashOpen.length?cashOpen.length+" 筆待確認 · "+fmt(cashOpen.reduce((a,p)=>a+num(p.amount),0)):"全數已確認"}</span>
+      <div class="grow"></div><span class="hint">現金不會出現在銀行明細，收到並清點後按「✓ 確認現金」</span></div>
+    <div class="pb flush"><div class="tw"><table>
+      <thead><tr><th>收款日</th><th>繳款人</th><th class="num">金額</th><th>狀態</th><th></th></tr></thead>
+      <tbody>${cashRecs.map(p=>`<tr><td>${esc(p.date||"")}</td><td>${esc(p.payer||studentNames(p)||"—")}</td><td class="num">${fmt(p.amount)}</td>
+        <td>${p.bankPaid?`<span class="chip ok" title="${esc(reconTip(p))}">現金已確認</span> <span class="hint">${esc(p.matchDate||"")}</span>`:`<span class="chip warn">現金待確認</span>`}</td>
+        <td class="right">${p.bankPaid?`<button class="btn sm ghost" data-unmark-paid="pay:${p.id}">取消確認</button>`:`<button class="btn sm primary" data-mark-paid="pay:${p.id}">✓ 確認現金</button>`}</td></tr>`).join("")}</tbody>
+    </table></div></div></div>`:""}
+  <p class="hint">誤差容忍 ±${TOL} 元。現金不列入銀行對帳，改在「現金收款確認」確認收訖。同一筆匯款若含課程＋裝備，兩個分頁各對一部分（金額欄會標「另有${otherNm}…」）。<br>
   ${side==="pay"?"對帳來源：業務在「收款登錄」填的匯款。業務沒登錄但後五碼對到學員資料時，可按「建收款」直接建立並對帳。":"對帳來源：「裝備進銷存」裡付款方式為匯款的銷售。沒登錄的先去進銷存補登銷售。"}</p>`;
 }
 function assignModal(arg){
@@ -2774,7 +2801,7 @@ async function saveCSV(name,rows){
 }
 function exportDues(all){
   const ym=S.ui.ym; const roster=monthRoster(ym);
-  const rows=[[`${ymLabel(ym)} 應收對帳`],[],["學員","堂數","原價","折扣","應收","已收(登錄)","銀行核對","未收"]];
+  const rows=[[`${ymLabel(ym)} 應收對帳`],[],["學員","堂數","原價","折扣","應收","已收(登錄)","已核對(銀行+現金)","未收"]];
   let tS=0,tG=0,tDs=0,tD=0,tL=0,tB=0,n=0;
   roster.forEach(s=>{
     const d=studentDue(ym,s.id),p=studentPaid(ym,s.id);
