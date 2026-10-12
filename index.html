@@ -922,14 +922,16 @@ function reconTip(rec){
       ? `${who}對到銀行明細：${t.txnDate||t.postDate||""}　存入 ${fmt(t.deposit)}　${t.summary||""}`.trim()
       : `${who}已對到一筆銀行明細（${rec.matchDate||"日期不明"}）`.trim();
   }
-  if(rec.bankPaid) return `${who}${rec.cash?"確認已收現金":"手動核銷"}${rec.matchDate?`，日期 ${rec.matchDate}`:""}${rec.matchAmt!=null?`，實際 ${fmt(rec.matchAmt)}`:""}`.trim();
+  if(rec.bankPaid) return `${who}${rec.cash?"確認已收現金":"手動核銷"}${rec.matchDate?`，日期 ${rec.matchDate}`:""}${rec.matchAmt!=null?`，實際 ${fmt(rec.matchAmt)}`:""}${rec.matchNote?`，備註：${rec.matchNote}`:""}`.trim();
   return rec.cash ? "現金尚未確認收訖" : "尚未核對／核銷";
 }
 /* 手動核銷／現金確認時填的實際金額與登錄金額不同 → 顯示差額 */
 function matchDiffNote(rec,amt){
-  if(!rec.bankPaid || rec.matchTxnId || rec.matchAmt==null) return "";
+  if(!rec.bankPaid || rec.matchTxnId) return "";
+  const note=rec.matchNote?`<div class="hint">📝 ${esc(rec.matchNote)}</div>`:"";
+  if(rec.matchAmt==null) return note;
   const d=num(rec.matchAmt)-num(amt);
-  return d===0 ? "" : `<div class="hint badp nowrap">${rec.cash?"實收":"入帳"} ${fmtP(rec.matchAmt)}・差 ${d>0?"+":""}${fmtP(d)}</div>`;
+  return (d===0 ? "" : `<div class="hint badp nowrap">${rec.cash?"實收":"入帳"} ${fmtP(rec.matchAmt)}・差 ${d>0?"+":""}${fmtP(d)}</div>`)+note;
 }
 
 async function runAutoMatch(year,side){
@@ -1011,7 +1013,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12d";
+const APP_BUILD="2026-10-12e";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1206,7 +1208,7 @@ function adultPayModal(id){
     if(count<=0){ toast("請填人數","bad"); return; }
     const rec={ id:r.id, date, count, price, amount:count*price, note:$("#ap-note",s).value.trim(),
       by:r.by||OP||"", createdAt:r.createdAt||new Date().toISOString(),
-      matchTxnId:r.matchTxnId||null, matchDate:r.matchDate||null, matchBy:r.matchBy||null, matchAmt:r.matchAmt!=null?r.matchAmt:null, bankPaid:r.bankPaid||false };
+      matchTxnId:r.matchTxnId||null, matchDate:r.matchDate||null, matchBy:r.matchBy||null, matchAmt:r.matchAmt!=null?r.matchAmt:null, matchNote:r.matchNote||null, bankPaid:r.bankPaid||false };
     Object.keys(S.adultPay).forEach(y=>{ S.adultPay[y]=(S.adultPay[y]||[]).filter(x=>x.id!==rec.id); });
     const y=date.slice(0,4);
     adultPayY(y).push(rec);
@@ -1671,7 +1673,7 @@ function payModal(id){
         amount:num($("[data-af='amount']",r).value), kind:$("[data-af='kind']",r).value,
       })).filter(a=>a.sid&&a.ym),
       matchTxnId:p.matchTxnId||null, matchDate:p.matchDate||null, bankPaid:p.bankPaid||false,
-      matchBy:p.matchBy||null, matchAmt:p.matchAmt!=null?p.matchAmt:null
+      matchBy:p.matchBy||null, matchAmt:p.matchAmt!=null?p.matchAmt:null, matchNote:p.matchNote||null
     };
     if(!rec.allocs.length){ toast("請至少指定一位學員與月份","bad"); return; }
     // 移除舊紀錄（可能換年度）
@@ -2179,6 +2181,7 @@ function markPaidModal(arg){
      <div class="field"><label>${isCash?"收訖確認日期":"銀行入帳日期"}</label><input class="txt" id="mp-date" type="date" value="${esc(rec.matchDate||today())}"></div>
      <div class="field"><label>${isCash?"實收金額":"實際入帳金額"}</label><input class="txt num" id="mp-amt" type="number" value="${rec.matchAmt!=null?num(rec.matchAmt):amt}">
        <div class="fh" id="mp-diff"></div></div>
+     <div class="field"><label>核銷備註</label><input class="txt" id="mp-note" value="${esc(rec.matchNote||"")}" placeholder="例：扣手續費 30、分兩筆匯入"></div>
      <p class="hint">${isCash?"確認這筆現金已經確實收到、清點無誤。":"確認你已在銀行查到這筆入帳。核銷後這筆在「應收對帳」會計入「已核對」。"}實際金額與登錄金額不同時，差額會顯示在清單上。</p>
    </div>
    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="mp-ok">${isCash?"確認":"核銷"}</button></div>`);
@@ -2191,6 +2194,7 @@ function markPaidModal(arg){
   $("#mp-ok",s).onclick=()=>{
     const v=$("#mp-amt",s).value.trim();
     rec.matchAmt = v==="" ? amt : num(v);
+    rec.matchNote=$("#mp-note",s).value.trim();
     rec.bankPaid=true; rec.matchDate=$("#mp-date",s).value||today(); rec.matchTxnId=null; rec.matchBy=OP||"";
     closeScrim(s);
     pushReconKind(kind);
@@ -2203,7 +2207,7 @@ function unmarkPaid(arg){
   if(!rec) return;
   const isCash=kind==="pay" && rec.cash;
   confirmModal(isCash?"取消這筆現金的收訖確認？會回到「現金待確認」。":"取消這筆的手動核銷？會回到「尚未對到銀行」。",()=>{
-    rec.bankPaid=false; rec.matchDate=null; rec.matchBy=null; rec.matchAmt=null;
+    rec.bankPaid=false; rec.matchDate=null; rec.matchBy=null; rec.matchAmt=null; rec.matchNote=null;
     pushReconKind(kind);
     toast(isCash?"已取消確認":"已取消核銷","ok");
   });
