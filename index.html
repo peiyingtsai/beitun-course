@@ -553,7 +553,8 @@ function subCost(ym){
   },e=>console.warn("cost",e));
 }
 async function pushCost(ym){ saveLS(); rerender(); if(DB) try{ await DB.doc(`cost/${ym}`).set(clone(costM(ym))); }catch(e){ toast("儲存失敗（成本）","bad"); } }
-function normPays(){ Object.values(S.pays).flat().forEach(p=>{ if(p&&p.last5!=null) p.last5=norm5(p.last5); }); }
+function normPays(){ Object.values(S.pays).flat().forEach(p=>{ if(!p) return; if(p.last5!=null) p.last5=norm5(p.last5);
+  if(p.date){ const d=normDate(p.date); if(d) p.date=d; } }); }   // 匯入的 2026/9/6 → 2026-09-06，排序才會正確
 function normBank(){ Object.values(S.bank).flat().forEach(t=>{ if(t&&t.last5!=null) t.last5=norm5(t.last5); }); }
 function normMoves(){ Object.values(S.invMoves).flat().forEach(m=>{ if(m&&m.last5!=null) m.last5=norm5(m.last5); }); }
 
@@ -1010,7 +1011,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12b";
+const APP_BUILD="2026-10-12c";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1521,6 +1522,7 @@ function editDatesModal(){
 
 /* ---------------- pay ---------------- */
 function viewPay(){
+  normPays();
   const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   const nOpen=rows.filter(p=>!p.matchTxnId && !p.bankPaid).length;
   return `
