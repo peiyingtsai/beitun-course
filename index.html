@@ -1004,7 +1004,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-02a";
+const APP_BUILD="2026-10-12a";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1566,7 +1566,7 @@ function payModal(id){
       <input class="txt" data-af="ym" value="${esc(a.ym||S.ui.ym)}" placeholder="YYYY-MM" style="font-family:'IBM Plex Mono'">
       <input class="txt num" data-af="amount" type="number" value="${a.amount||""}" placeholder="金額">
       <div style="display:flex;gap:4px;align-items:center">
-        <select class="pick" data-af="kind" style="width:auto"><option value="course" ${a.kind!=="makeup"?"selected":""}>月費</option><option value="makeup" ${a.kind==="makeup"?"selected":""}>補堂</option></select>
+        <select class="pick" data-af="kind" style="width:auto"><option value="course" ${a.kind!=="makeup"?"selected":""}>包周</option><option value="makeup" ${a.kind==="makeup"?"selected":""}>補堂</option></select>
         <button class="btn sm danger ghost" data-arm="${i}">×</button>
       </div>
     </div>`;
@@ -1579,7 +1579,7 @@ function payModal(id){
        <div class="field"><label>總金額</label><input class="txt num" id="p-amount" type="number" value="${p.amount||""}"></div>
      </div>
      <div class="grid2">
-       <div class="field"><label>繳款人 / 家長</label><input class="txt" id="p-payer" value="${esc(p.payer||"")}" placeholder="例：王媽媽"></div>
+       <div class="field"><label>繳款人 / 家長</label><input class="txt" id="p-payer" value="${esc(p.payer||"")}" placeholder="例：王媽媽"><div class="fh" id="p-payer-hint"></div></div>
        <div class="field"><label>匯款帳號後五碼</label><input class="txt" id="p-last5" value="${esc(p.last5||"")}" placeholder="12345" ${p.cash?"disabled":""}></div>
      </div>
      <div class="field"><label class="checkrow" style="margin:0"><input type="checkbox" id="p-cash" ${p.cash?"checked":""}> 現金繳款（不進銀行對帳）</label></div>
@@ -1611,8 +1611,30 @@ function payModal(id){
     const l5El=$("#p-last5",s);
     if(stu && stu.last5 && !$("#p-cash",s).checked && !l5El.value.trim()) l5El.value=stu.last5;
   }
+  /* 繳款人剛好等於學員或家長姓名 → 帶入學員資料的匯款後五碼（只覆蓋空白或上次自動帶入的值）*/
+  let autoL5="";
+  function payerLookup(){
+    const v=$("#p-payer",s).value.trim();
+    const hint=$("#p-payer-hint",s), l5El=$("#p-last5",s);
+    hint.textContent="";
+    if(!v) return;
+    const hits=S.students.filter(x=>(x.name||"").trim()===v || (x.parent||"").trim()===v);
+    if(!hits.length) return;
+    const l5s=[...new Set(hits.map(x=>norm5(x.last5)).filter(Boolean))];
+    const names=hits.map(x=>x.name).join("、");
+    if(l5s.length===1){
+      if(!$("#p-cash",s).checked && (!l5El.value.trim() || l5El.value.trim()===autoL5)){ l5El.value=l5s[0]; autoL5=l5s[0]; }
+      hint.textContent=`對到學員資料：${names}（後五碼 ${l5s[0]}）`;
+    } else if(l5s.length>1){
+      hint.textContent=`對到學員資料：${names}，但後五碼不同（${l5s.join("／")}），請自行填寫`;
+    } else hint.textContent=`對到學員資料：${names}（尚未登錄後五碼）`;
+    // 只對到一位學員時，順便帶入第一筆分配的學員
+    const sidEl=$("#p-allocs [data-af='sid']",s);
+    if(hits.length===1 && sidEl && !sidEl.value){ sidEl.value=hits[0].id; autofillAlloc(sidEl.closest("[data-arow]")); }
+  }
   s.addEventListener("input",e=>{
     if(e.target.id==="p-amount"||e.target.dataset.af==="amount") refreshSum();
+    if(e.target.id==="p-payer") payerLookup();
   });
   s.addEventListener("change",e=>{
     if(e.target.dataset.af==="sid"||e.target.dataset.af==="ym") autofillAlloc(e.target.closest("[data-arow]"));
