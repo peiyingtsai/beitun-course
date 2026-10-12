@@ -981,7 +981,7 @@ function renderNav(){
 function renderTop(){
   const titleMap={overview:"總覽",attend:"課程報名",pay:"收款登錄",dues:"應收對帳",students:"學員資料",pnl:"每月成本收益",bankCourse:"課程對帳",bankInv:"裝備銷售對帳",inv:"裝備進銷存",settings:"設定"};
   let h=`<h2>${titleMap[S.ui.tab]||""}</h2><div class="grow"></div>`;
-  if(["overview","attend","dues","pnl"].includes(S.ui.tab)){
+  if(["overview","attend","pay","dues","pnl"].includes(S.ui.tab)){
     h+=`<div class="mpick"><label>月份</label><div class="mo">
       <button data-ym="-1" title="上個月">‹</button>
       <select class="pick lbl" id="ymPick" style="border:0;background:none;text-align:center">
@@ -1013,7 +1013,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12e";
+const APP_BUILD="2026-10-12g";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1146,11 +1146,14 @@ function adultRoster(){
   }).join("")}</div></div>`;
 }
 function viewAdultPay(){
-  const rows=allAdultPay().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const ym=S.ui.ym, all=false;   // 跟上方收款登錄一樣，只列所選月份
+  const rows=allAdultPay().filter(r=>all || String(normDate(r.date)||r.date||"").slice(0,7)===ym)
+    .sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   return `<div class="panel">
-    <div class="ph"><h3>現場收款登記（週三 · 成人之夜 $${fmt(adultNightPrice())}/人）</h3><div class="grow"></div>
+    <div class="ph"><h3>現場收款登記（週三 · 成人之夜 $${fmt(adultNightPrice())}/人）</h3>
+      <span class="chip mut">${all?"全部月份":esc(ymLabel(ym))} · ${rows.length} 筆 · ${fmt(rows.reduce((a,r)=>a+num(r.amount),0))}</span><div class="grow"></div>
       <button class="btn primary sm" data-act="add-adultpay">＋ 登記本週收款</button></div>
-    ${!rows.length?`<div class="empty"><div class="big">🌙</div>還沒有登記。每週三現場收現金後，隔天存入銀行前先按「＋ 登記本週收款」記錄人數。</div>`
+    ${!rows.length?`<div class="empty"><div class="big">🌙</div>${all?"還沒有登記":esc(ymLabel(ym))+" 還沒有登記"}。每週三現場收現金後，隔天存入銀行前先按「＋ 登記本週收款」記錄人數。</div>`
     :`<div class="pb flush"><div class="tw"><table>
       <thead><tr><th>日期</th><th class="num">人數</th><th class="num">單價</th><th class="num">金額</th><th>對帳</th><th>登記人</th><th></th></tr></thead>
       <tbody>${rows.map(r=>{
@@ -1526,16 +1529,18 @@ function editDatesModal(){
 function viewPay(){
   normPays();
   const desc=S.ui.paySort==="desc";   // 預設由舊到新，點「日期」欄可切換
-  const rows=allPays().slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))*(desc?-1:1));
+  // 只列出所選月份：收款日在該月，或有分配到該月
+  const ym=S.ui.ym, all=false;
+  const rows=allPays().filter(p=>all || String(p.date||"").slice(0,7)===ym || (p.allocs||[]).some(a=>a.ym===ym))
+    .sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))*(desc?-1:1));
   const nOpen=rows.filter(p=>!p.matchTxnId && !p.bankPaid).length;
   return `
   <div class="panel">
     <div class="ph" data-toggle-paylist style="cursor:pointer">
       <h3>${payListOpen?"▾":"▸"} 收款登錄 <span class="hint">（業務收到報名／匯款後在這裡填）</span></h3>
-      <span class="chip mut">${rows.length} 筆</span>
+      <span class="chip mut">${all?"全部月份":esc(ymLabel(ym))} · ${rows.length} 筆</span>
       ${nOpen?`<span class="chip warn">${nOpen} 筆待對帳</span>`:""}
-      <div class="grow"></div>
-      <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button>
+      <div class="grow"></div>      <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button>
     </div>
     ${payListOpen?`<div class="pb flush"><div class="tw"><table>
       <thead><tr><th data-paysort style="cursor:pointer" title="點一下切換排序">日期 ${desc?"▼ 新→舊":"▲ 舊→新"}</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
@@ -1555,7 +1560,7 @@ function viewPay(){
           <td class="right nowrap"><button class="btn sm ghost" data-edit-pay="${p.id}">編輯</button>
             <button class="btn sm danger" data-del-pay="${p.id}">刪</button></td>
         </tr>`;
-      }).join("")||`<tr><td colspan="7" class="empty">尚無收款紀錄</td></tr>`}</tbody>
+      }).join("")||`<tr><td colspan="7" class="empty">${all?"尚無收款紀錄":esc(ymLabel(ym))+" 沒有收款紀錄"}</td></tr>`}</tbody>
     </table></div></div>`:""}
   </div>
   ${viewAdultPay()}`;
