@@ -1011,7 +1011,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12c";
+const APP_BUILD="2026-10-12d";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1523,7 +1523,8 @@ function editDatesModal(){
 /* ---------------- pay ---------------- */
 function viewPay(){
   normPays();
-  const rows=allPays().slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const desc=S.ui.paySort==="desc";   // 預設由舊到新，點「日期」欄可切換
+  const rows=allPays().slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))*(desc?-1:1));
   const nOpen=rows.filter(p=>!p.matchTxnId && !p.bankPaid).length;
   return `
   <div class="panel">
@@ -1535,7 +1536,7 @@ function viewPay(){
       <button class="btn primary sm" data-act="add-pay">＋ 新增一筆收款</button>
     </div>
     ${payListOpen?`<div class="pb flush"><div class="tw"><table>
-      <thead><tr><th>日期</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
+      <thead><tr><th data-paysort style="cursor:pointer" title="點一下切換排序">日期 ${desc?"▼ 新→舊":"▲ 舊→新"}</th><th>繳款人</th><th>分配到（學員 / 月）</th><th class="num">金額</th><th>方式</th><th>對帳</th><th></th></tr></thead>
       <tbody>${rows.map(p=>{
         const allocTxt=(p.allocs||[]).map(a=>`${esc(studentName(a.sid))} <span class="hint">${a.ym}${a.kind==="makeup"?" 補堂":""}</span> ${fmtP(a.amount)}`).join("<br>");
         const tip=esc(reconTip(p));
@@ -2933,6 +2934,7 @@ document.addEventListener("click",e=>{
   if(e.target.closest("[data-toggle-bankorphan]") && !e.target.closest("button")){ bankOrphanOpen=!bankOrphanOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-pendingpay]") && !e.target.closest("button")){ pendingPayOpen=!pendingPayOpen; rerender(); return; }
   if(e.target.closest("[data-toggle-paylist]") && !e.target.closest("button")){ payListOpen=!payListOpen; rerender(); return; }
+  if(e.target.closest("[data-paysort]")){ S.ui.paySort=S.ui.paySort==="desc"?"asc":"desc"; saveLS(); rerender(); return; }
   const av=e.target.closest("[data-attview]"); if(av){ S.ui.attView=av.dataset.attview; saveLS(); rerender(); return; }
   const ad=e.target.closest("[data-attdate]"); if(ad){ S.ui.attDate=ad.dataset.attdate; saveLS(); rerender(); return; }
 
