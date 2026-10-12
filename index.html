@@ -1013,7 +1013,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12g";
+const APP_BUILD="2026-10-12h";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1248,7 +1248,7 @@ function viewOverview(){
   <h3 style="margin:2px 0 10px;font-size:14px;letter-spacing:.04em;color:var(--muted)">課程收支 · ${esc(ymLabel(ym))}</h3>
   <div class="cards">
     <div class="card"><div class="k">本月應收（報名）</div><div class="v">${fmt(due)}</div><div class="sub">${roster.length} 位學員 · ${ns} 堂</div></div>
-    <div class="card"><div class="k">本月已收（業務登錄）</div><div class="v">${fmt(logged)}</div><div class="sub">尚缺 ${fmt(due-logged)}</div></div>
+    <div class="card"><div class="k">本月已收（業務登錄）</div><div class="v">${fmt(logged)}</div><div class="sub">${due-logged<-TOL?`超過應收 ${fmt(logged-due)}（報名未登完？）`:`尚缺 ${fmt(due-logged)}`}</div></div>
     <div class="card"><div class="k">本月已核對（銀行＋現金）</div><div class="v">${fmt(bank)}</div><div class="sub">已登未核 ${fmt(logged-bank)}</div></div>
     <div class="card ${owe.length?'':'accent'}"><div class="k">本月欠款</div><div class="v ${owe.length?'neg':'pos'}">${owe.length} 人</div><div class="sub">${owe.length?"共 "+fmt(owe.reduce((a,s)=>a+(studentDue(ym,s.id).amount-studentPaid(ym,s.id).logged),0)):"全數收齊"}</div></div>
     <div class="card ${pending.length?'':'accent'}"><div class="k">本月待核對收款</div><div class="v ${pending.length?'neg':'pos'}">${fmt(pendingAmt)}</div><div class="sub">${pending.length?pending.length+" 筆待核對／核銷":"全數已核對"}</div></div>
@@ -1697,15 +1697,18 @@ function payModal(id){
 function viewDues(){
   const ym=S.ui.ym;
   const roster=monthRoster(ym);
-  let tDue=0,tLog=0,tBank=0,tSess=0;
+  // tOwe＝各學員欠款加總；tOver＝各學員「已收超過應收」加總（預收：收了錢但課程報名還沒登錄，或多繳）。兩者分開算，不互相抵銷
+  let tDue=0,tLog=0,tBank=0,tSess=0,tOwe=0,tOver=0,nOver=0;
   const rows=roster.map(s=>{
     const d=studentDue(ym,s.id), p=studentPaid(ym,s.id);
     tDue+=d.amount; tLog+=p.logged; tBank+=p.bank; tSess+=d.sessions;
     const owe=d.amount-p.logged, unver=p.logged-p.bank;
+    if(owe>0) tOwe+=owe; else if(owe<0){ tOver+=-owe; if(-owe>TOL) nOver++; }
     let chip;
     if(d.amount===0 && p.logged===0) chip=`<span class="chip mut">—</span>`;
     else if(owe>TOL) chip=`<span class="chip bad"><span class="dot"></span>欠 ${fmtP(owe)}</span>`;
     else if(unver>TOL) chip=`<span class="chip warn"><span class="dot"></span>${p.cashPend>=unver-TOL?"現金待確認":p.cashPend>TOL?"待核對（含現金）":"待銀行核對"}</span>`;
+    else if(owe<-TOL) chip=`<span class="chip acc"><span class="dot"></span>預收 ${fmtP(-owe)}</span>`;
     else chip=`<span class="chip ok"><span class="dot"></span>已收齊</span>`;
     const aj=studentAdj(ym,s.id);
     const ajCell = isMgr()
@@ -1717,17 +1720,19 @@ function viewDues(){
       <td class="num">${fmt(d.amount)}${d.discount?`<div class="hint okp">原 ${fmtP(d.gross)}・折 -${fmtP(d.discount)}</div>`:""}</td>
       <td class="num">${fmt(p.logged)}</td>
       <td class="num">${fmt(p.bank)}</td>
-      <td class="num ${owe>TOL?'badp':''}">${fmt(owe)}</td>
+      <td class="num ${owe>TOL?'badp':''}">${owe<-TOL?`<span class="hint">預收 ${fmtP(-owe)}</span>`:fmt(owe)}</td>
       <td>${chip}</td></tr>`;
   }).join("");
   const pend=pendingPaysFor(ym).filter(x=>x.kind==="pay");
   return `
   <div class="cards">
     <div class="card"><div class="k">應收合計</div><div class="v">${fmt(tDue)}</div></div>
-    <div class="card"><div class="k">已收（業務登錄）</div><div class="v">${fmt(tLog)}</div><div class="sub">缺 ${fmt(tDue-tLog)}</div></div>
+    <div class="card"><div class="k">已收（業務登錄）</div><div class="v">${fmt(tLog)}</div><div class="sub">${tOver>TOL?`其中預收 ${fmt(tOver)}`:`缺 ${fmt(tOwe)}`}</div></div>
     <div class="card"><div class="k">已核對（銀行＋現金）</div><div class="v">${fmt(tBank)}</div><div class="sub">已登未核 ${fmt(tLog-tBank)}</div></div>
-    <div class="card accent"><div class="k">未收</div><div class="v ${tDue-tLog>TOL?'neg':'pos'}">${fmt(tDue-tLog)}</div></div>
+    <div class="card accent"><div class="k">未收（欠款）</div><div class="v ${tOwe>TOL?'neg':'pos'}">${fmt(tOwe)}</div>${tOver>TOL?`<div class="sub">另有預收 ${fmt(tOver)}（${nOver} 人）</div>`:""}</div>
   </div>
+  ${tOver>TOL?`<div class="panel"><div class="pb"><span class="chip acc"><span class="dot"></span>預收 ${fmt(tOver)}</span>
+    有 ${nOver} 位學員「已收」超過「應收」。應收是照「課程報名」算的，通常代表這些學員已繳費、但本月的課程報名還沒登錄完；到「課程報名」補登後，應收會跟上，預收就會歸零。</div></div>`:""}
   ${pend.length?`<div class="panel">
     <div class="ph"><h3>已登未核的收款（${pend.length}）</h3><span class="chip warn">${fmt(pend.reduce((a,x)=>a+x.amt,0))}</span><div class="grow"></div>
       <span class="hint">${isMgr()?"現金按「✓ 確認現金」；匯款到「課程對帳」對銀行，或直接「✓ 核銷」":"需由管理者確認／核銷"}</span></div>
@@ -1745,7 +1750,7 @@ function viewDues(){
     <div class="pb flush"><div class="tw"><table>
       <thead><tr><th>學員</th><th class="num">堂數</th><th class="num">應收</th><th class="num">已收</th><th class="num">已核對</th><th class="num">未收</th><th>狀態</th></tr></thead>
       <tbody>${rows||`<tr><td colspan="7" class="empty">本月沒有資料</td></tr>`}</tbody>
-      <tfoot class="tfoot"><tr><td>合計（${roster.length} 位）</td><td class="num">${tSess}</td><td class="num">${fmt(tDue)}</td><td class="num">${fmt(tLog)}</td><td class="num">${fmt(tBank)}</td><td class="num">${fmt(tDue-tLog)}</td><td></td></tr></tfoot>
+      <tfoot class="tfoot"><tr><td>合計（${roster.length} 位）</td><td class="num">${tSess}</td><td class="num">${fmt(tDue)}</td><td class="num">${fmt(tLog)}</td><td class="num">${fmt(tBank)}</td><td class="num">${fmt(tOwe)}${tOver>TOL?`<div class="hint">預收 ${fmtP(tOver)}</div>`:""}</td><td></td></tr></tfoot>
     </table></div></div>
   </div>
   <p class="hint">「已收」＝業務在收款登錄填的金額；「已核對」＝匯款已在銀行對帳勾稽／核銷，或現金已由管理者確認收訖。點學員看繳費明細。</p>`;
