@@ -637,14 +637,29 @@ async function pushMoves(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`inv
 async function pushAdultPay(y){ saveLS(); rerender(); if(DB) try{ await DB.doc(`adultpay/${y}`).set({rows:adultPayY(y)}); }catch(e){ toast("儲存失敗（成人之夜收款）","bad"); } }
 
 /* ===================================================== computed */
+/* 有開課的星期：價目表裡有設場次的星期（例：一二三五）；價目表全空時退回週一二三 */
+function classWeekdays(){
+  const p=S.settings.price||{};
+  const w=Object.keys(p).filter(k=>(p[k]||[]).length).map(Number).sort();
+  return w.length?w:[1,2,3];
+}
+function classWeekdaysLabel(){ return "週"+classWeekdays().map(w=>WD[w]).join(""); }
 function monthDates(ym){
   const [y,m]=ym.split("-").map(Number);
+  const wds=classWeekdays();
   const out=[]; const last=new Date(y,m,0).getDate();
   for(let d=1;d<=last;d++){
     const wd=new Date(y,m-1,d).getDay();
-    if([1,2,3].includes(wd)) out.push(`${ym}-${String(d).padStart(2,"0")}`);
+    if(wds.includes(wd)) out.push(`${ym}-${String(d).padStart(2,"0")}`);
   }
   return out;
+}
+/* 自訂過上課日的月份：價目表有場次、但還沒列入上課日的日期（只看今天以後，過去的當作刻意停課）*/
+function missingDates(ym){
+  const a=attM(ym);
+  if(!(a.dates&&a.dates.length)) return [];
+  const t=today();
+  return monthDates(ym).filter(d=>d>=t && !a.dates.includes(d));
 }
 function activeDates(ym){
   const a=attM(ym);
@@ -1013,7 +1028,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-12h";
+const APP_BUILD="2026-10-13a";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1385,6 +1400,7 @@ function viewAttend(){
 
   const view=S.ui.attView||"day";
   const customDates=!!(attM(ym).dates&&attM(ym).dates.length);
+  const miss=missingDates(ym);
   const head=`
     <div class="ph"><h3>${esc(ymLabel(ym))}　報名表</h3><div class="grow"></div>
       <div class="seg">
@@ -1396,9 +1412,12 @@ function viewAttend(){
       <button class="btn sm" data-act="att-hist">↩ 復原（${(attM(ym).hist||[]).length}）</button>
       <button class="btn sm" data-act="export-attend">⬇ CSV</button></div>
     <div class="pb" style="padding:8px 15px 0;font-size:12px;color:var(--muted)">
-      ${dates.length} 個上課日${customDates?"（自訂）":"（預設：全部週一二三，可按「🗓 上課日」調整）"}
+      ${dates.length} 個上課日${customDates?"（自訂）":`（預設：全部${classWeekdaysLabel()}，可按「🗓 上課日」調整）`}
       · ${roster.length} 位在學學員　—　切換上方「月份」看其他月；學員報名後直接在下方勾選他上的場次即可
-    </div>`;
+    </div>
+    ${miss.length?`<div class="pb" style="padding:8px 15px 0"><span class="chip warn"><span class="dot"></span>有 ${miss.length} 個日期還沒列入上課日</span>
+      <span class="hint">價目表有場次，但本月上課日沒有：${miss.map(d=>`${+d.slice(5,7)}/${+d.slice(8)}（${WD[wdOf(d)]}）`).join("、")}</span>
+      <button class="btn sm primary" data-act="add-missing-dates" style="margin-left:6px">＋ 加入這些日期</button></div>`:""}`;
 
   if(!dates.length){
     return `<div class="panel">${head}<div class="empty">本月沒有上課日。<button class="btn sm" data-act="edit-dates">產生上課日</button></div></div>`;
@@ -1511,10 +1530,10 @@ function editDatesModal(){
   const s=scrim(`
    <div class="mh"><h3>${esc(ymLabel(ym))} 上課日</h3><button class="x" data-x>×</button></div>
    <div class="mb">
-     <p class="hint">預設為當月所有週一、二、三。可自行增減（停課、補課日）。</p>
+     <p class="hint">預設為當月所有${classWeekdaysLabel()}（價目表有設場次的星期）。可自行增減（停課、補課日）。</p>
      <div class="field"><label>上課日（每行一個日期 YYYY-MM-DD）</label>
        <textarea class="txt" id="d-list" rows="8">${cur.join("\n")}</textarea></div>
-     <button class="btn sm" id="d-gen">重新產生週一二三</button>
+     <button class="btn sm" id="d-gen">重新產生全部${classWeekdaysLabel()}</button>
    </div>
    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="d-save">儲存</button></div>`);
   $("#d-gen",s).onclick=()=>{ $("#d-list",s).value=monthDates(ym).join("\n"); };
@@ -2961,6 +2980,10 @@ document.addEventListener("click",e=>{
   else if(d.act==="import-adults") importModal("adults");
   else if(d.act==="add-adultpay") adultPayModal();
   else if(d.act==="edit-dates") editDatesModal();
+  else if(d.act==="add-missing-dates"){
+    const ym=S.ui.ym, a=attM(ym), miss=missingDates(ym);
+    if(miss.length){ a.dates=[...new Set(a.dates.concat(miss))].sort(); pushAttend(ym); toast(`已加入 ${miss.length} 個上課日`,"ok"); }
+  }
   else if(d.act==="att-hist") attHistModal(S.ui.ym);
   else if(d.act==="add-pay") payModal();
   else if(d.act==="add-item") itemModal();
