@@ -943,7 +943,8 @@ function reconTip(rec){
 /* 手動核銷／現金確認時填的實際金額與登錄金額不同 → 顯示差額 */
 function matchDiffNote(rec,amt){
   if(!rec.bankPaid || rec.matchTxnId) return "";
-  const note=rec.matchNote?`<div class="hint">📝 ${esc(rec.matchNote)}</div>`:"";
+  const note=(rec.matchDate&&rec.matchDate!==rec.date?`<div class="hint nowrap">${rec.cash?"確認":"入帳"}日 ${esc(rec.matchDate)}</div>`:"")
+    +(rec.matchNote?`<div class="hint">📝 ${esc(rec.matchNote)}</div>`:"");
   if(rec.matchAmt==null) return note;
   const d=num(rec.matchAmt)-num(amt);
   return (d===0 ? "" : `<div class="hint badp nowrap">${rec.cash?"實收":"入帳"} ${fmtP(rec.matchAmt)}・差 ${d>0?"+":""}${fmtP(d)}</div>`)+note;
@@ -1028,7 +1029,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-13a";
+const APP_BUILD="2026-10-23a";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1624,6 +1625,16 @@ function payModal(id){
        <div class="fh" id="p-sum"></div>
      </div>
      <div class="field"><label>備註</label><input class="txt" id="p-note" value="${esc(p.note||"")}"></div>
+     ${editing&&(p.bankPaid||p.matchTxnId)?`<div class="field" style="border-top:1px solid var(--line-2);padding-top:12px">
+       <label>核銷資訊 <span class="chip ok">${p.cash?"現金已確認":"已核對"}</span></label>
+       <div class="grid2">
+         <div class="field"><label>${p.cash?"收訖確認日期":"銀行入帳日期"}</label><input class="txt" id="p-mdate" type="date" value="${esc(p.matchDate||"")}" ${p.matchTxnId?"disabled":""}>
+           ${p.matchTxnId?`<div class="fh">對到銀行明細，日期以明細為準</div>`:""}</div>
+         <div class="field"><label>${p.cash?"實收金額":"實際入帳金額"}</label><input class="txt num" value="${p.matchAmt!=null?fmtP(p.matchAmt):"（未填，視同登錄金額）"}" disabled></div>
+       </div>
+       ${p.matchNote?`<div class="hint">核銷備註：${esc(p.matchNote)}</div>`:""}
+       <div class="fh">${esc(reconTip(p))}${p.matchTxnId?"":"　·　要改金額或備註，請在清單按「取消」後重新核銷"}</div>
+     </div>`:""}
    </div>
    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="p-save">儲存</button></div>`,"wide");
 
@@ -1696,7 +1707,8 @@ function payModal(id){
         sid:$("[data-af='sid']",r).value, ym:$("[data-af='ym']",r).value.trim(),
         amount:num($("[data-af='amount']",r).value), kind:$("[data-af='kind']",r).value,
       })).filter(a=>a.sid&&a.ym),
-      matchTxnId:p.matchTxnId||null, matchDate:p.matchDate||null, bankPaid:p.bankPaid||false,
+      matchTxnId:p.matchTxnId||null, bankPaid:p.bankPaid||false,
+      matchDate:($("#p-mdate",s)&&!p.matchTxnId&&$("#p-mdate",s).value)||p.matchDate||null,
       matchBy:p.matchBy||null, matchAmt:p.matchAmt!=null?p.matchAmt:null, matchNote:p.matchNote||null
     };
     if(!rec.allocs.length){ toast("請至少指定一位學員與月份","bad"); return; }
