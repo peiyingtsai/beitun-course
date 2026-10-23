@@ -944,7 +944,8 @@ function reconTip(rec){
 function matchDiffNote(rec,amt){
   if(!rec.bankPaid || rec.matchTxnId) return "";
   const note=(rec.matchDate&&rec.matchDate!==rec.date?`<div class="hint nowrap">${rec.cash?"確認":"入帳"}日 ${esc(rec.matchDate)}</div>`:"")
-    +(rec.matchNote?`<div class="hint">📝 ${esc(rec.matchNote)}</div>`:"");
+    +(rec.matchNote?`<div class="hint">📝 ${esc(rec.matchNote)}</div>`:"")
+    +(rec.acctNote?`<div class="hint">🧾 會計：${esc(rec.acctNote)}</div>`:"");
   if(rec.matchAmt==null) return note;
   const d=num(rec.matchAmt)-num(amt);
   return (d===0 ? "" : `<div class="hint badp nowrap">${rec.cash?"實收":"入帳"} ${fmtP(rec.matchAmt)}・差 ${d>0?"+":""}${fmtP(d)}</div>`)+note;
@@ -1029,7 +1030,7 @@ function opModal(){
   $("#op-in",s).focus();
   $("#op-ok",s).onclick=()=>{ setOp($("#op-in",s).value); closeScrim(s); rerender(); toast("已設定","ok"); };
 }
-const APP_BUILD="2026-10-23a";
+const APP_BUILD="2026-10-23b";
 function renderStatus(){
   $("#statusbar").innerHTML=`
     <span class="live ${dbReady?'on':''}"><span class="d"></span>${dbReady?"雲端同步中 · 資料即時共享":"本機模式（尚未連線雲端）"}</span>
@@ -1633,7 +1634,10 @@ function payModal(id){
          <div class="field"><label>${p.cash?"實收金額":"實際入帳金額"}</label><input class="txt num" value="${p.matchAmt!=null?fmtP(p.matchAmt):"（未填，視同登錄金額）"}" disabled></div>
        </div>
        ${p.matchNote?`<div class="hint">核銷備註：${esc(p.matchNote)}</div>`:""}
-       <div class="fh">${esc(reconTip(p))}${p.matchTxnId?"":"　·　要改金額或備註，請在清單按「取消」後重新核銷"}</div>
+       <div class="fh">${esc(reconTip(p))}${p.matchTxnId?"":"　·　要改金額或核銷備註，請在清單按「取消」後重新核銷"}</div>
+       <div class="field" style="margin:12px 0 0"><label>會計備註 <span class="hint">（核銷後由會計／管理者補充）</span></label>
+         ${isMgr()?`<textarea class="txt" id="p-acctnote" rows="2" placeholder="例：已開收據、併入 10/12 入帳">${esc(p.acctNote||"")}</textarea>`
+           :`<div class="hint">${esc(p.acctNote||"—")}</div>`}</div>
      </div>`:""}
    </div>
    <div class="mf"><button class="btn ghost" data-x>取消</button><button class="btn primary" id="p-save">儲存</button></div>`,"wide");
@@ -1709,7 +1713,8 @@ function payModal(id){
       })).filter(a=>a.sid&&a.ym),
       matchTxnId:p.matchTxnId||null, bankPaid:p.bankPaid||false,
       matchDate:($("#p-mdate",s)&&!p.matchTxnId&&$("#p-mdate",s).value)||p.matchDate||null,
-      matchBy:p.matchBy||null, matchAmt:p.matchAmt!=null?p.matchAmt:null, matchNote:p.matchNote||null
+      matchBy:p.matchBy||null, matchAmt:p.matchAmt!=null?p.matchAmt:null, matchNote:p.matchNote||null,
+      acctNote:($("#p-acctnote",s)?$("#p-acctnote",s).value.trim():(p.acctNote||""))||null
     };
     if(!rec.allocs.length){ toast("請至少指定一位學員與月份","bad"); return; }
     // 移除舊紀錄（可能換年度）
